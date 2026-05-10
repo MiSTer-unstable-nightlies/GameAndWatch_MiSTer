@@ -19,6 +19,15 @@ module normalize #(
     // Z is used for one hot bit selection, hence the width
     output reg [MAX_Z_SEGMENT-1:0] segments[MAX_X_SEGMENT][MAX_Y_SEGMENT]
 );
+  initial begin
+    int x, y;
+
+    for (x = 0; x < MAX_X_SEGMENT; x += 1) begin
+      for (y = 0; y < MAX_Y_SEGMENT; y += 1) begin
+        segments[x][y] = '0;
+      end
+    end
+  end
 
   always @(posedge clk) begin
     int x, y, z;

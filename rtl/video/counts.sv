@@ -1,13 +1,14 @@
 module counts (
     input wire clk,
+    input wire ce_pix,
 
     output reg [9:0] x = 0,
     output reg [9:0] y = 0,
 
-    output reg hsync = 0,
-    output reg vsync = 0,
-    output reg hblank = 0,
-    output reg vblank = 0,
+    output reg  hsync = 0,
+    output reg  vsync = 0,
+    output wire hblank,
+    output wire vblank,
 
     output wire de
 );
@@ -35,37 +36,38 @@ module counts (
   end
 
   assign de = x < WIDTH && y < HEIGHT;
-
   assign vblank = y >= HEIGHT;
   assign hblank = x >= WIDTH;
 
   always @(posedge clk) begin
-    reg [9:0] next_x;
-    reg [9:0] next_y;
+    if (ce_pix) begin
+      reg [9:0] next_x;
+      reg [9:0] next_y;
 
-    hsync <= 0;
-    vsync <= 0;
+      hsync <= 0;
+      vsync <= 0;
 
-    next_x = x + 10'b1;
-    next_y = y;
+      next_x = x + 10'b1;
+      next_y = y;
 
-    if (next_y == VBLANK_TIME && next_x == WIDTH + 10'b1) begin
-      // VSync
-      vsync <= 1;
-    end else if (next_x == HBLANK_TIME) begin
-      // HSync
-      hsync <= 1;
-    end else if (next_x == MAX_X) begin
-      next_x = 10'h0;
-      next_y = y + 10'b1;
+      if (next_y == VBLANK_TIME && next_x == WIDTH + 10'b1) begin
+        // VSync
+        vsync <= 1;
+      end else if (next_x == HBLANK_TIME) begin
+        // HSync
+        hsync <= 1;
+      end else if (next_x == MAX_X) begin
+        next_x = 10'h0;
+        next_y = y + 10'b1;
 
-      if (next_y == MAX_Y) begin
-        next_y = 10'h0;
+        if (next_y == MAX_Y) begin
+          next_y = 10'h0;
+        end
       end
-    end
 
-    x <= next_x;
-    y <= next_y;
+      x <= next_x;
+      y <= next_y;
+    end
   end
 
 endmodule

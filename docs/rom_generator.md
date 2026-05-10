@@ -15,31 +15,34 @@ Place your `[artwork].zip` and `[rom].zip` MAME ROM files into your MAME folder,
 /MAME Folder/roms/gnw_dkong.zip
 ```
 
-Visit [Releases](https://github.com/agg23/fpga-gameandwatch/releases) and download the latest version of the generator by clicking on the file named `agg23...-Tools.zip`. Select the correct folder for your platform. You will want to open a terminal window (or Command Prompt on Windows) in this location.
+The generator source lives in [`support/`](../support). Build it from the repository root with:
 
-**NOTE:** On macOS and Linux, you must mark the downloaded file as executable. Navigate to the folder containing `fpga-gnw-romgenerator` in your terminal, and run:
-
-```
-chmod +x fpga-gnw-romgenerator
+```sh
+cargo build --manifest-path support/Cargo.toml --release --locked
 ```
 
-This marks the file as being a program you can run.
+The built binary will be at `support/target/release/fpga-gnw-romgenerator`.
 
 ----
 
 The tool has many options and features which you can explore by running:
 
-```
-fpga-gnw-romgenerator --help
+```sh
+cargo run --manifest-path support/Cargo.toml --release --locked -- --help
 ```
 
 But most users will just want to generate any supported, installed ROMs they have, which you can do by running:
 
-```
-fpga-gnw-romgenerator --mame-path [MAME path] --output-path [Output ROM path] supported
+```sh
+cargo run --manifest-path support/Cargo.toml --release --locked -- \
+  --manifest-path support/manifest.json \
+  --mame-path [MAME path] \
+  --output-path [Output ROM path] \
+  --installed \
+  supported
 ```
 
-Make sure to replace the brackets with the actual paths to your files. The MAME path should be the folder that contains the `artwork` and `roms` folders.
+Make sure to replace the brackets with the actual paths to your files. The MAME path should be the folder that contains the `artwork` and `roms` folders. The output path must already exist.
 
 You can also generate a single game, all of the games for a certain CPU, and more.
 
@@ -63,8 +66,10 @@ In order to turn MAME ROMs of separate formats and sizes into a unified 720x720 
 
 The manifest extractor (located at [support/extraction](../support/extraction)) reads the MAME `hh_sm510.cpp` device definition file that contains all SM510 related titles and converts it into a reliable, reusable format. Use is very simple, run:
 
-```
-npm run build [Path to hh_sm510.cpp]
+```sh
+cd support/extraction
+npm ci
+npm run build -- [Path to hh_sm510.cpp] ../manifest.json
 ```
 
-This will create a `manifest.json` file with every SM510 title supported by MAME. You can use this in the ROM Generator by putting it alongside the executable, or by passing the `--manifest-path` argument
+This will create a `support/manifest.json` file with every SM510 title supported by MAME. You can use this in the ROM Generator by passing the `--manifest-path` argument.

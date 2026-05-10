@@ -6,7 +6,7 @@
 
 ## ROMs
 
-ROMs must be generated from their MAME counterparts. See [ROM Generator](rom_generator.md) for more information.
+ROMs must be generated from their MAME counterparts. The generator source is included in [`support/`](../support); see [ROM Generator](rom_generator.md) for more information.
 
 ----
 ### Analogue Pocket

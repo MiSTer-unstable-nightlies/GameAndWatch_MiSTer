@@ -6,7 +6,6 @@ module rgb_controller (
 
     // Video
     input wire hblank_int,
-    input wire [9:0] video_x,
     input wire [9:0] video_y,
     input wire de_int,
 
@@ -23,12 +22,13 @@ module rgb_controller (
 );
 
   wire fifo_clear = hblank_int && ~prev_hblank;
+  wire fifo_write = buffer_count == 3'h3;
 
   image_fifo background_image_fifo (
       .wrclk(clk_sys_99_287),
       .rdclk(clk_vid_33_095),
 
-      .wrreq(buffer_count == 3'h3),
+      .wrreq(fifo_write),
       .data (background_buffer),
 
       .rdreq(de_int),
@@ -43,7 +43,7 @@ module rgb_controller (
       .wrclk(clk_sys_99_287),
       .rdclk(clk_vid_33_095),
 
-      .wrreq(buffer_count == 3'h3),
+      .wrreq(fifo_write),
       .data (mask_buffer),
 
       .rdreq(de_int),
@@ -52,8 +52,8 @@ module rgb_controller (
       .aclr(fifo_clear)
   );
 
-  // 1/3rd of each pixel per 16 bit word (one byte to each FIFO)
-  localparam WORDS_PER_LINE = 16'd720 * 16'h3;
+  // 1/3rd of each source pixel per 16 bit word (one byte to each FIFO).
+  localparam SOURCE_WORDS_PER_LINE = 16'd720 * 16'd3;
 
   reg prev_sd_data_available;
   reg prev_hblank = 0;
@@ -71,6 +71,7 @@ module rgb_controller (
       mask_buffer <= 0;
 
       buffer_count <= 0;
+      sd_read_count <= 0;
     end else begin
       reg [2:0] new_buffer_count;
 
@@ -84,7 +85,7 @@ module rgb_controller (
       sd_end_burst <= 0;
 
       if (buffer_count == 3'h3) begin
-        // Writting buffer, we've now "cleared" it
+        // The completed source pixel has now been consumed.
         new_buffer_count = 0;
       end
 
@@ -99,13 +100,13 @@ module rgb_controller (
 
         sd_read_count <= sd_read_count + 16'h1;
 
-        if (sd_read_count >= WORDS_PER_LINE - 16'h2) begin
+        if (sd_read_count >= SOURCE_WORDS_PER_LINE - 16'd2) begin
           // Don't need to read any more. Halt burst
           sd_end_burst <= 1;
         end
       end else if (~sd_data_available && prev_sd_data_available) begin
         // We stopped reading, check if we need to read more
-        if (sd_read_count < WORDS_PER_LINE) begin
+        if (sd_read_count < SOURCE_WORDS_PER_LINE) begin
           // We haven't read enough, queue another read
           sd_rd <= 1;
         end
@@ -125,17 +126,16 @@ module rgb_controller (
     end
   end
 
-  // Address of the next line of the image
-  // Address calculates the number of bytes (not words) so we have full precision
-  // Essentually multiply by two, then divide by to for interleaved data, then byte addressing
+  // Address of the next line of the image in 16-bit SDRAM words.
+  // One source line is 720 pixels * 3 words/pixel = 2160 words.
   always @(posedge clk_sys_99_287) begin
     reg [ 9:0] read_y;
-    reg [25:0] read_byte_addr;
+    reg [24:0] line_word_addr;
 
-    read_y = video_y >= 10'd720 ? 10'b0 : hblank_int ? video_y + 10'h1 : video_y;
-    read_byte_addr = {16'b0, read_y} * 26'd720 * 26'h3 * 26'h2;
+    read_y = video_y >= 10'd720 ? 10'd0 : hblank_int ? video_y + 10'd1 : video_y;
+    line_word_addr = {4'b0, read_y, 11'b0} + {8'b0, read_y, 7'b0} - {11'b0, read_y, 4'b0};
 
-    sd_rd_addr <= read_byte_addr[25:1] + {9'b0, sd_read_count};
+    sd_rd_addr <= line_word_addr + {9'b0, sd_read_count};
   end
 
 endmodule

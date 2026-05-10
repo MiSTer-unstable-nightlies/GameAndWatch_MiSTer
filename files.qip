@@ -1,0 +1,22 @@
+set_global_assignment -name QIP_FILE rtl/ip/image_fifo.qip
+set_global_assignment -name QIP_FILE rtl/ip/mask_rom.qip
+
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/types.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cpu/divider.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cpu/instructions.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/input_config.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mask.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rom_loader.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sm510.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/alpha_blend.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/counts.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/lcd.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/normalize.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/rgb_controller.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/segments.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/video/video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/vendor/sdram-controller/sdram_burst.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/gameandwatch.sv
+
+set_global_assignment -name SYSTEMVERILOG_FILE GameAndWatch.sv

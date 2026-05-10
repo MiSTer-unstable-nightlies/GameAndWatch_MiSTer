@@ -460,6 +460,7 @@ module sm510 (
         reg [3:0] digit;
 
         digit = inst.pla_digit();
+        w_prime_temp = inst.w_prime;
 
         w_prime_temp[w_length-2] = w_prime_temp[w_length-1];
         w_prime_temp[w_length-1] = digit;
@@ -533,8 +534,6 @@ module sm510 (
   // TODO: Is this correct, it doesn't match MAME?
   wire [11:0] pc_inc = {inst.Pu, inst.Pm, inst.Pl[0] == inst.Pl[1], inst.Pl[5:1]};
 
-  reg [11:0] last_pc  /* synthesis noprune */;
-
   always @(posedge clk) begin
     if (reset) begin
       // WARNING: Reset must be high for greater than one cycle so that data can cascade through
@@ -594,20 +593,20 @@ module sm510 (
           // SM5a
           inst.stored_output_r <= 4'hF;
 
-          inst.output_r_mask <= inst.R_MASK_DIRECT;
+	          inst.output_r_mask <= 3'h7;
 
           inst.stack_s <= inst.pc;
         end
         5: begin
           // SM510 Tiger
-          inst.output_r_mask <= inst.R_MASK_DIRECT;
+	          inst.output_r_mask <= 3'h7;
         end
         default: begin
           // SM510
           inst.stored_output_r <= 0;
 
           // Use divider bit 3 for mask
-          inst.output_r_mask   <= 2;
+	          inst.output_r_mask   <= 3'h2;
         end
       endcase
 
@@ -640,8 +639,6 @@ module sm510 (
         // Backup Pl, so operations that change parts of it (ATPL) don't use the incremented version
         last_Pl <= inst.Pl;
       end
-
-      last_pc <= inst.pc;
 
       case (stage)
         STAGE_LOAD_PC: begin

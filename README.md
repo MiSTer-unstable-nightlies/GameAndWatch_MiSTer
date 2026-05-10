@@ -1,10 +1,26 @@
-# Game and Watch for FPGAs
+# Game and Watch for MiSTer
 
 ![Promo Image](../assets/promo.jpg)
 
-This core is an original creation by [@agg23](https://github.com/agg23). It is based strongly on the original documentation for the Game and Watch CPU (see [Documentation Overview](docs/overview.md)), but additional supported CPUs in the core (like the SM5a) are based entirely on MAME's implementation. I have tried to accurately transcribe and rewrite the existing documentation and MAME's code into a more understandable, fewer error form. The Pocket platform icon was created by Random11. See [Licensing](#licensing) for more information.
+This core is an original creation by [@agg23](https://github.com/agg23). It is based strongly on the original documentation for the Game and Watch CPU (see [Documentation Overview](docs/overview.md)), but additional supported CPUs in the core (like the SM5a) are based entirely on MAME's implementation. I have tried to accurately transcribe and rewrite the existing documentation and MAME's code into a more understandable, fewer error form. See [Licensing](#licensing) for more information.
 
-Currently supported platforms are the Analogue Pocket and MiSTer.
+This split is focused on the MiSTer version of the core, assisted by Codex. The active project follows the MiSTer template layout: `sys/` is the untouched MiSTer framework, `rtl/` is the core RTL, `GameAndWatch.sv` is the framework glue, and `files.qip` is the manually maintained Quartus source list.
+
+## Building for MiSTer
+
+Use Quartus 17.0.x, matching the upstream MiSTer template recommendation:
+
+```sh
+quartus_sh --flow compile GameAndWatch.qpf
+```
+
+Release RBFs should be placed in `releases/` with MiSTer naming:
+
+```text
+GameAndWatch_YYYYMMDD.rbf
+```
+
+Migration details and verification notes were written by Codex are documented in [docs/mister_migration.md](docs/mister_migration.md).
 
 ## Installation Instructions
 
@@ -12,7 +28,7 @@ See [Platform Installation Instructions](docs/platform_installation.md) for plat
 
 ## Generating ROMs
 
-A tool is provided to generate ROMs from MAME ROMs for all of the supported devices. See [ROM Generator](docs/rom_generator.md) for more information about generating the ROMs.
+MiSTer loads `.gnw` ROM packages through the OSD. The ROM generator source and manifest extractor live in [support/](support/); full usage notes are in [docs/rom_generator.md](docs/rom_generator.md).
 
 ## Supported Systems
 
@@ -52,6 +68,7 @@ There are a lot of components to this project, and the licensing on them depends
 
 | Contents                                                                                                                              | License |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| The main repo, all Game and Watch core code, all tools and tests, and the documentation (other than the original docs owned by Sharp) | MIT     |
-| All Pocket platform code, Pocket `core_top.sv`, and any Pocket specific components (unless otherwise noted)                           | MIT     |
-| All MiMiC/MiSTer platform code, MiSTer `core_top.sv`, and any MiSTer specific components (unless otherwise noted)                     | GPLv3   |
+| Main Game and Watch core RTL and documentation (other than the original docs owned by Sharp)                                          | MIT     |
+| MiSTer framework files in `sys/`                                                                                                       | Upstream MiSTer template license/source headers |
+| MiSTer glue in `GameAndWatch.sv`                                                                                                       | GPLv3   |
+| Vendored SDRAM controller in `rtl/vendor/sdram-controller/`                                                                            | MIT     |

@@ -34,6 +34,7 @@ module video #(
     output reg vblank,
 
     output reg de,
+    output wire ce_pix,
     output reg [23:0] rgb,
 
     // SDRAM
@@ -52,6 +53,7 @@ module video #(
   wire vblank_int;
 
   wire de_int;
+  assign ce_pix = 1'b1;
 
   ////////////////////////////////////////////////////////////////////////////////////////
   // LCD
@@ -98,7 +100,7 @@ module video #(
   wire [23:0] mask_rgb;
   wire [23:0] processed_rgb;
 
-  wire [7:0] alpha = reset ? 24'h0 : segment_en ? 8'hFF : lcd_off_alpha;
+  wire [7:0] alpha = reset ? 8'h00 : segment_en ? 8'hFF : lcd_off_alpha;
 
   alpha_blend alpha_blend (
       .background_pixel(background_rgb),
@@ -120,7 +122,6 @@ module video #(
 
       // Video
       .hblank_int(hblank_int),
-      .video_x(video_x),
       .video_y(video_y),
       .de_int(de_int),
 
@@ -151,6 +152,7 @@ module video #(
 
   counts counts (
       .clk(clk_vid_33_095),
+      .ce_pix(ce_pix),
 
       .x(video_x),
       .y(video_y),

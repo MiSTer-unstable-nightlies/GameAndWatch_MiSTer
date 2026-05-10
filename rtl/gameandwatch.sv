@@ -34,6 +34,7 @@ module gameandwatch (
     output wire vblank,
 
     output wire de,
+    output wire ce_pix,
     output wire [23:0] rgb,
 
     // Sound
@@ -165,13 +166,13 @@ module gameandwatch (
   // Device/CPU
 
   // 1020 (the multiplier from 32.768kHz to vid clock) * 3
-  localparam DIVIDER_RESET_VALUE = 12'hBF4 - 12'h1;
+  localparam [11:0] DIVIDER_RESET_VALUE = 12'hBF4 - 12'h001;
   reg [11:0] clock_divider = DIVIDER_RESET_VALUE;
 
   wire clk_en = clock_divider == 0;
 
   always @(posedge clk_sys_99_287) begin
-    clock_divider <= clock_divider - 1;
+    clock_divider <= clock_divider - 12'h001;
 
     if (clock_divider == 0) begin
       clock_divider <= DIVIDER_RESET_VALUE;
@@ -272,6 +273,7 @@ module gameandwatch (
       .vblank(vblank),
 
       .de (de),
+      .ce_pix(ce_pix),
       .rgb(rgb),
 
       // SDRAM
@@ -288,7 +290,7 @@ module gameandwatch (
   wire sdram_wr = ioctl_wr && image_download;
 
   sdram_burst #(
-      .CLOCK_SPEED_MHZ(99.28704),
+      .CLOCK_SPEED_MHZ(98.304),
       .CAS_LATENCY(2)
   ) sdram (
       .clk  (clk_sys_99_287),

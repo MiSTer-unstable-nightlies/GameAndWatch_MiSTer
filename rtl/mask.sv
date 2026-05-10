@@ -103,7 +103,7 @@ module mask #(
     has_segment <= in_segment;
 
     if (vid_counter > 0) begin
-      vid_counter <= vid_counter - 'h1;
+      vid_counter <= vid_counter - 1'b1;
     end else begin
       vid_counter <= CLOCK_RATIO_START_VALUE[VID_COUNTER_DEPTH-1:0];
     end
