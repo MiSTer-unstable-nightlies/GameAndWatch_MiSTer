@@ -4,6 +4,7 @@ interface instructions (
     // Data
     input wire [7:0] opcode,
     input wire [7:0] last_opcode,
+    input wire [7:0] melody_data,
     input wire [3:0] ram_data,
 
     // Internal
@@ -47,8 +48,10 @@ interface instructions (
 
   // TODO: Currently unused. See LCD pulsing
   reg [3:0] segment_y = 0;
+  reg [3:0] segment_x = 0;
 
   reg [7:0] shifter_w = 0;
+  reg [7:0] shifter_s = 0;
 
   // Control
   reg skip_next_instr = 0;
@@ -68,6 +71,14 @@ interface instructions (
 
   reg [3:0] stored_output_r = 0;
   reg [3:0] output_r = 0;
+
+  // SM511/SM512 melody controller and clock selection
+  reg sm511_slow_clock = 1;
+  reg [1:0] melody_rd = 0;
+  reg [4:0] melody_step_count = 0;
+  reg [4:0] melody_duty_count = 0;
+  reg [1:0] melody_duty_index = 0;
+  reg [7:0] melody_address = 0;
 
   localparam R_MASK_DIRECT = 3'h7;
   // Direct passthrough of R0 on 0x7, otherwise use the divider bit indicated by this value
@@ -160,8 +171,110 @@ interface instructions (
   ////////////////////////////////////////////////////////////////////////////////////////
   // Melody/Output
 
+  function [3:0] sm511_tone_cycles(input [1:0] duty_index, input [3:0] tone);
+    case ({duty_index, tone})
+      6'h02: sm511_tone_cycles = 4'd7;
+      6'h03: sm511_tone_cycles = 4'd8;
+      6'h04: sm511_tone_cycles = 4'd8;
+      6'h05: sm511_tone_cycles = 4'd9;
+      6'h06: sm511_tone_cycles = 4'd9;
+      6'h07: sm511_tone_cycles = 4'd10;
+      6'h08: sm511_tone_cycles = 4'd11;
+      6'h09: sm511_tone_cycles = 4'd11;
+      6'h0A: sm511_tone_cycles = 4'd12;
+      6'h0B: sm511_tone_cycles = 4'd13;
+      6'h0C: sm511_tone_cycles = 4'd14;
+      6'h0D: sm511_tone_cycles = 4'd14;
+
+      6'h12: sm511_tone_cycles = 4'd8;
+      6'h13: sm511_tone_cycles = 4'd8;
+      6'h14: sm511_tone_cycles = 4'd9;
+      6'h15: sm511_tone_cycles = 4'd9;
+      6'h16: sm511_tone_cycles = 4'd10;
+      6'h17: sm511_tone_cycles = 4'd11;
+      6'h18: sm511_tone_cycles = 4'd11;
+      6'h19: sm511_tone_cycles = 4'd12;
+      6'h1A: sm511_tone_cycles = 4'd13;
+      6'h1B: sm511_tone_cycles = 4'd13;
+      6'h1C: sm511_tone_cycles = 4'd14;
+      6'h1D: sm511_tone_cycles = 4'd15;
+
+      6'h22: sm511_tone_cycles = 4'd8;
+      6'h23: sm511_tone_cycles = 4'd8;
+      6'h24: sm511_tone_cycles = 4'd9;
+      6'h25: sm511_tone_cycles = 4'd9;
+      6'h26: sm511_tone_cycles = 4'd10;
+      6'h27: sm511_tone_cycles = 4'd10;
+      6'h28: sm511_tone_cycles = 4'd11;
+      6'h29: sm511_tone_cycles = 4'd12;
+      6'h2A: sm511_tone_cycles = 4'd12;
+      6'h2B: sm511_tone_cycles = 4'd13;
+      6'h2C: sm511_tone_cycles = 4'd14;
+      6'h2D: sm511_tone_cycles = 4'd15;
+
+      6'h32: sm511_tone_cycles = 4'd8;
+      6'h33: sm511_tone_cycles = 4'd9;
+      6'h34: sm511_tone_cycles = 4'd9;
+      6'h35: sm511_tone_cycles = 4'd10;
+      6'h36: sm511_tone_cycles = 4'd10;
+      6'h37: sm511_tone_cycles = 4'd11;
+      6'h38: sm511_tone_cycles = 4'd11;
+      6'h39: sm511_tone_cycles = 4'd12;
+      6'h3A: sm511_tone_cycles = 4'd13;
+      6'h3B: sm511_tone_cycles = 4'd14;
+      6'h3C: sm511_tone_cycles = 4'd14;
+      6'h3D: sm511_tone_cycles = 4'd15;
+
+      default: sm511_tone_cycles = 4'd0;
+    endcase
+  endfunction
+
   task clock_melody();
     case (cpu_id)
+      1, 2, 6, 7: begin
+        // SM511/SM512 dedicated melody generator. The melody ROM stores 6-bit commands in
+        // 8-bit bytes; bit 5 selects duration and bit 4 selects octave.
+        reg [5:0] cmd;
+        reg [3:0] tone;
+        reg [3:0] cycles;
+        reg [4:0] target_cycles;
+        reg [4:0] step_mask;
+        reg [4:0] next_step_count;
+        reg out;
+
+        cmd = melody_data[5:0];
+        tone = cmd[3:0];
+        out = 0;
+
+        if (tone >= 4'd2 && tone <= 4'd13) begin
+          cycles = sm511_tone_cycles(melody_duty_index, tone);
+          target_cycles = cmd[4] ? {1'b0, cycles} : {cycles, 1'b0};
+          out = melody_duty_index[0] & melody_rd[0];
+
+          if (melody_duty_count + 5'd1 >= target_cycles) begin
+            melody_duty_count <= 0;
+            melody_duty_index <= melody_duty_index + 2'd1;
+          end else begin
+            melody_duty_count <= melody_duty_count + 5'd1;
+          end
+        end else begin
+          if (tone == 4'd1) begin
+            melody_rd[1] <= 1;
+          end
+        end
+
+        if ((divider & 15'h007F) == 15'h0000) begin
+          step_mask = cmd[5] ? 5'h1F : 5'h0F;
+          next_step_count = (melody_step_count + 5'd1) & step_mask;
+          melody_step_count <= next_step_count;
+
+          if (next_step_count == 5'h00) begin
+            melody_address <= melody_address + 8'd1;
+          end
+        end
+
+        output_r <= {3'b000, out};
+      end
       4: begin
         // SM5a
         reg r0_mask;
@@ -377,14 +490,32 @@ interface instructions (
     segment_y <= Acc;
   endtask
 
+  task atx();
+    // ATX. Set segment output X to Acc. Used by SM511/SM512 for the second BS bit.
+    segment_x <= Acc;
+  endtask
+
   task atr();
     // ATR. Set R buzzer control value to the bottom two bits of Acc
     stored_output_r <= Acc;
   endtask
 
+  task ptw_s();
+    // PTW. Latch W to the S output port. SM510 updates S directly on WR/WS;
+    // SM511/SM512 update it explicitly with this instruction.
+    shifter_s <= shifter_w;
+  endtask
+
   task wr();
     // WR. Shift 0 into W
-    shifter_w <= {shifter_w[6:0], 1'b0};
+    reg [7:0] next_w;
+    next_w = {shifter_w[6:0], 1'b0};
+
+    shifter_w <= next_w;
+
+    if (cpu_id == 0 || cpu_id == 5) begin
+      shifter_s <= next_w;
+    end
   endtask
 
   // task wr_sm500(reg [3:0] w_length);
@@ -394,7 +525,14 @@ interface instructions (
 
   task ws();
     // WS. Shift 1 into W
-    shifter_w <= {shifter_w[6:0], 1'b1};
+    reg [7:0] next_w;
+    next_w = {shifter_w[6:0], 1'b1};
+
+    shifter_w <= next_w;
+
+    if (cpu_id == 0 || cpu_id == 5) begin
+      shifter_s <= next_w;
+    end
   endtask
 
   // task ws_sm500(reg [3:0] w_length);
@@ -639,5 +777,37 @@ interface instructions (
   task dta();
     // DTA. Copy high bits of clock divider to Acc
     Acc <= divider[14:11];
+  endtask
+
+  task pre();
+    // PRE. Preset the SM511/SM512 melody ROM pointer.
+    melody_address <= opcode;
+    melody_step_count <= 0;
+  endtask
+
+  task sme();
+    // SME. Enable SM511/SM512 melody playback.
+    melody_rd[0] <= 1;
+  endtask
+
+  task rme();
+    // RME. Disable SM511/SM512 melody playback.
+    melody_rd[0] <= 0;
+  endtask
+
+  task tmel();
+    // TMEL. Skip if the melody stop flag is set, then clear it.
+    skip_next_instr <= melody_rd[1];
+    melody_rd[1] <= 0;
+  endtask
+
+  task clklo();
+    // CLKLO. Select the 8.192kHz SM511/SM512 instruction clock.
+    sm511_slow_clock <= 1;
+  endtask
+
+  task clkhi();
+    // CLKHI. Select the 16.384kHz SM511/SM512 instruction clock.
+    sm511_slow_clock <= 0;
   endtask
 endinterface

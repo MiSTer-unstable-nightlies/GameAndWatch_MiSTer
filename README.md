@@ -26,12 +26,14 @@ See [Platform Installation Instructions](docs/platform_installation.md) for plat
 
 ## Generating ROMs
 
-MiSTer loads `.gnw` ROM packages through the OSD. The ROM generator source and manifest extractor live in [support/](support/); full usage notes are in [docs/rom_generator.md](docs/rom_generator.md).
+MiSTer loads `.gnw` ROM packages through the OSD. The ROM generator source and manifest extractor live in [rom generator/](rom%20generator/); full usage notes are in [docs/rom_generator.md](docs/rom_generator.md).
 
 ## Supported Systems
 
 The Game and Watch (and related) series of devices used varied hardware for each device. The currently supported CPUs are:
 * SM510 - The "base" CPU the other's were based off of - Donkey Kong, Fire Attack, Mickey and Donald, etc
+* SM511 - Later Game & Watch titles with a dedicated melody ROM - Super Mario Bros., Climber, Balloon Fight, etc
+* SM512 - Later Multi Screen titles with an added C segment group - Black Jack, Bomb Sweeper, Gold Cliff, Zelda, etc
 * SM510 (Tiger Variant) - Experimental - Street Fighter 2, Double Dragon, etc
 * SM5a - Ball, Octopus, etc
 

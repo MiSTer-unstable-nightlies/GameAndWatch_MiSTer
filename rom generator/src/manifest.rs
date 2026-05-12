@@ -17,6 +17,7 @@ pub struct PlatformSpecification {
 pub struct ROMName {
     pub rom: String,
     pub melody: Option<String>,
+    pub melody_hash: Option<String>,
     pub rom_owner: Option<String>,
     pub rom_hash: String,
 }

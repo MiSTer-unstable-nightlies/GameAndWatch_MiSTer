@@ -187,7 +187,6 @@ CRT note:
 
 No `sys/` framework files were changed.
 
-
 ## Video Pipeline Revert - 2026-05-09
 
 Reverted the post-CRT video pipeline experiments after hardware testing showed the analog output was broken.
@@ -234,5 +233,41 @@ No `sys/` framework files were changed.
 - That split points at the CPU-type-specific `clock_melody()` path: Tiger uses the direct `R` path, while normal SM510 Game & Watch titles use the divider-gated path.
 - Reverted `rtl/cpu/instructions.sv` `clock_melody()` to the upstream `agg23/fpga-gameandwatch` behavior, including the direct `divider[output_r_mask]` indexing and task-local temporaries.
 - This intentionally backs out the earlier warning-cleanup helper in this area so the preservation-critical sound behavior matches the old working core first.
+
+No `sys/` framework files were changed.
+
+## SM511/SM512 Support Work - 2026-05-11
+
+Started implementation on branch `SM511+12` after a read-only feasibility pass against the local RTL and current MAME SM511/SM512 references.
+
+ROM generator changes:
+
+- Kept the existing `.gnw` layout compatible for SM510/SM5a packages.
+- Added SM511/SM512 to the generator's normal `supported` filter.
+- Added melody ROM packaging for SM511-family packages: the program ROM is padded to `0x1000` bytes and the 256 byte melody ROM is appended at package byte offset `0x326240` (`ROM_DATA_ADDR + 0x1000`).
+- Added optional `melodyHash` manifest plumbing so shared/parent melody ROMs can be found by SHA when a filename lookup is not enough.
+- Left SM511 Tiger IDs out of the normal `supported` filter for now, but the packaging helper recognizes them as melody-ROM CPUs if generated explicitly.
+
+RTL changes:
+
+- Added a 256 byte melody ROM RAM in `rtl/gameandwatch.sv`, loaded from the appended ROM area at byte offsets `0x1000-0x10FF` after the main program ROM.
+- Added SM511/SM512 melody address/data signals into `rtl/sm510.sv` and `rtl/cpu/instructions.sv`.
+- Added the SM511/SM512 melody generator state, tone-cycle table, and `PRE`, `SME`, `RME`, and `TMEL` operations following MAME's phase/reset behavior.
+- Added SM511/SM512 clock select handling: reset starts at the slower 8.192 kHz instruction rate and `CLKHI`/`CLKLO` switch between 16.384 kHz and 8.192 kHz.
+- Added an SM511-family decode path for CPU IDs `1`, `2`, `6`, and `7`, including the moved/expanded opcode map (`ROT`, `DTA`, `KTA`, `ATX`, `PTW`, `TL`, `TML`, and the `0x60` extended opcodes).
+- Split the W shift register from the S output latch so SM510 still updates S directly on `WR`/`WS`, while SM511/SM512 latch W to S via `PTW`.
+- Added SM512 segment C RAM caching for addresses `0x50-0x5F` and propagated segment C through the LCD/video normalization path as mask line `x=3`.
+- Changed BS from a single replicated bit to a 16-bit vector: SM510 still mirrors the single BS behavior across all mask columns, while SM511/SM512 expose BS column 0 from L/Y blinking and column 1 from X.
+
+Documentation changes:
+
+- Documented the appended SM511/SM512 melody ROM location in `docs/format.md`.
+- Updated `docs/graphics.md` so the SVG segment-plane documentation includes SM512 `seg_c` as mask line `x=3`.
+- Updated generator docs to reference the actual `rom generator/` folder instead of the earlier `support/` name and describe the SM511/SM512 melody packaging behavior.
+
+Verification notes:
+
+- `git diff --check` passed.
+- `cargo`, `quartus_sh`, `verilator`, and `iverilog` were not available in this local tool environment, so Rust and HDL compile checks still need to be run on the build machine.
 
 No `sys/` framework files were changed.

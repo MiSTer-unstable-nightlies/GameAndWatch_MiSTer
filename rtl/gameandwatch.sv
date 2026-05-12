@@ -99,19 +99,30 @@ module gameandwatch (
 
   wire [11:0] rom_addr;
   reg [7:0] rom_data = 0;
+  wire [7:0] melody_addr;
+  reg [7:0] melody_data = 0;
 
   reg [7:0] rom[4096];
+  reg [7:0] melody_rom[256];
 
   always @(posedge clk_sys_99_287) begin
     if (clk_en) begin
       rom_data <= rom[rom_addr];
+      melody_data <= melody_rom[melody_addr];
     end
   end
 
+  wire [25:0] rom_byte_addr = {addr_8bit[25:1], ~addr_8bit[0]};
+
   always @(posedge clk_sys_99_287) begin
     if (wr_8bit && rom_download) begin
-      // ioctl_dout has flipped bytes, flip back by modifying address
-      rom[{addr_8bit[25:1], ~addr_8bit[0]}] <= data_8bit;
+      // ioctl_dout has flipped bytes, flip back by modifying address. SM511/SM512
+      // packages append the 0x100-byte melody ROM at byte offset 0x1000.
+      if (rom_byte_addr < 26'h001000) begin
+        rom[rom_byte_addr[11:0]] <= data_8bit;
+      end else if (rom_byte_addr >= 26'h001000 && rom_byte_addr < 26'h001100) begin
+        melody_rom[rom_byte_addr[7:0]] <= data_8bit;
+      end
     end
   end
 
@@ -183,7 +194,8 @@ module gameandwatch (
 
   wire [15:0] current_segment_a;
   wire [15:0] current_segment_b;
-  wire current_segment_bs;
+  wire [15:0] current_segment_c;
+  wire [15:0] current_segment_bs;
 
   wire [3:0] current_w_prime[9];
   wire [3:0] current_w_main[9];
@@ -202,6 +214,9 @@ module gameandwatch (
       .rom_data(rom_data),
       .rom_addr(rom_addr),
 
+      .melody_data(melody_data),
+      .melody_addr(melody_addr),
+
       .input_k(input_k),
 
       .input_ba  (input_ba),
@@ -213,6 +228,7 @@ module gameandwatch (
 
       .segment_a (current_segment_a),
       .segment_b (current_segment_b),
+      .segment_c (current_segment_c),
       .segment_bs(current_segment_bs),
 
       .w_prime(current_w_prime),
@@ -256,6 +272,7 @@ module gameandwatch (
       // Segments
       .current_segment_a (current_segment_a),
       .current_segment_b (current_segment_b),
+      .current_segment_c (current_segment_c),
       .current_segment_bs(current_segment_bs),
 
       .current_w_prime(current_w_prime),

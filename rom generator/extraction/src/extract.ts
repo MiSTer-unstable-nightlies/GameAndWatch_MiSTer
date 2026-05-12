@@ -201,6 +201,7 @@ const run = () => {
         rom: {
           rom: rom.rom.name,
           melody: rom.melody?.name,
+          melodyHash: rom.melody?.sha,
           romHash: rom.rom.sha,
         },
       };

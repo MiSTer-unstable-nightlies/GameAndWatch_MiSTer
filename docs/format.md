@@ -16,6 +16,7 @@ First bit is version. Spec V1 is as follows:
 0x100: Start of byte interleaved images
 0x2F7700: [mask config 0x2DB40 bytes] End of images, start of mask config
 0x325240: ROM data
+0x326240: [SM511/SM512 melody ROM 0x100 bytes, when present]
 ```
 
 0000_1101_11 -> 00_0011_0111
@@ -108,3 +109,9 @@ The `x`, `y` coordinates of the start of a run of mask pixels is recorded, along
 id: [row/z 2 bits][column/y 4 bits][line/x 4 bits]
 0x2DB40 bytes total - 720 rows, average of 52 entries, 5 bytes each
 ```
+
+### ROM Data
+
+The CPU program ROM starts at `0x325240`. SM510 and SM5a packages keep their existing behavior and end after the program ROM data.
+
+SM511/SM512 packages pad the program ROM area to `0x1000` bytes and append the 256 byte melody ROM at `0x326240`. This keeps the old package layout compatible while giving the core a fixed melody ROM load address.
