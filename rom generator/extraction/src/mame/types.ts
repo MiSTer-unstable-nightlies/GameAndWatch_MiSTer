@@ -40,6 +40,24 @@ export type Screen =
         width: number;
         height: number;
       };
+    }
+  | {
+      type: "tripleHorizontal";
+
+      left: {
+        width: number;
+        height: number;
+      };
+
+      middle: {
+        width: number;
+        height: number;
+      };
+
+      right: {
+        width: number;
+        height: number;
+      };
     };
 
 export interface PresetDefinition {

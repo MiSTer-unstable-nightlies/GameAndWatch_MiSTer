@@ -549,6 +549,11 @@ fn screen_filename(index: usize, platform_name: &str, platform: &PresetDefinitio
                 "_right"
             }
         }
+        manifest::Screen::TripleHorizontal { .. } => match index {
+            0 => "_left",
+            1 => "_middle",
+            _ => "_right",
+        },
     };
 
     format!("{platform_name}{suffix}.svg")

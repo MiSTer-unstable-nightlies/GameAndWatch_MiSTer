@@ -210,6 +210,19 @@ fn build_config(platform: &PlatformSpecification) -> Result<Vec<u8>, String> {
 
             (2, left.width, left.height)
         }
+        Screen::TripleHorizontal {
+            left,
+            middle,
+            right,
+        } => {
+            if left.height != middle.height || middle.height != right.height {
+                println!("Triple-horizontal screen heights don't match");
+            }
+
+            // The current FPGA package renderer uses the per-screen SVG bounds,
+            // but keep a representative panel size in the legacy 12-bit field.
+            (3, middle.width, middle.height)
+        }
     };
     config.push(screen);
 

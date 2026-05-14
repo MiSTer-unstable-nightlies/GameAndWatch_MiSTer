@@ -364,3 +364,8 @@ No `sys/` framework files were changed.
 - Found that `inp_fixed_last()` handling in the ROM generator stored the array position of the last `S` port rather than the actual `S` line index. This only diverged for Tiger games with skipped S rows.
 - Updated `rom generator/extraction/src/extract.ts` to write `port.index`, matching the package format and `rtl/input_config.sv` expectation that the stored value is the 0-based S line number before encoding.
 - Corrected the checked-in manifest entries whose grounded row pointed at the wrong S line: `tbatmana`, `tflash`, `tgargnf`, `tmigmax`, `tsuperman`, and `tvindictr`. Existing `.gnw` packages for those games need to be regenerated to pick up the fix.
+
+### 2026-05-14 manifest extractor coverage for skipped MAME titles
+- Added `tripleHorizontal` screen metadata so `sm511_tripleh(...)` titles such as Tronica Treasure Island can be represented by the ROM generator manifest.
+- Taught the extractor to handle Konami `ktmnt2`-derived constructors that call `ktmnt2(config)` and then replace the SVG screen size with `mcfg_svg_screen(...)`, covering `kst25` and `ktopgun2`.
+- Documented format value `0x3` for triple-horizontal packages. Konami external sample/ADPCM audio and MAME `IPT_CUSTOM` shared-button behavior remain separate core/input-scope issues; these changes make the titles representable in the manifest and generator.

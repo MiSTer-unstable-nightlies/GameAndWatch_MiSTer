@@ -37,13 +37,14 @@ First bit is version. Spec V1 is as follows:
 
 ### Screen Configuration
 
-| Screen Config   | Conf. Value |
-| --------------- | ----------- |
-| Single screen   | `0x0`       |
-| Dual Horizontal | `0x1`       |
-| Dual Vertical   | `0x2`       |
+| Screen Config     | Conf. Value |
+| ----------------- | ----------- |
+| Single screen     | `0x0`       |
+| Dual Vertical     | `0x1`       |
+| Dual Horizontal   | `0x2`       |
+| Triple Horizontal | `0x3`       |
 
-12 bits each for screen width/height
+12 bits each for screen width/height. For triple-horizontal packages, the legacy size field stores the middle screen size; the renderer uses the actual per-screen SVG bounds.
 
 ### Input Mapping
 
