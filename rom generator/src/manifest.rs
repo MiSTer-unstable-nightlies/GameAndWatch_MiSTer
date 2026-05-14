@@ -17,6 +17,7 @@ pub struct PlatformSpecification {
 pub struct ROMName {
     pub rom: String,
     pub melody: Option<String>,
+    pub melody_hash: Option<String>,
     pub rom_owner: Option<String>,
     pub rom_hash: String,
 }
@@ -60,9 +61,23 @@ pub enum CPUType {
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 pub enum Screen {
-    Single { width: f32, height: f32 },
-    DualVertical { top: Size, bottom: Size },
-    DualHorizontal { left: Size, right: Size },
+    Single {
+        width: f32,
+        height: f32,
+    },
+    DualVertical {
+        top: Size,
+        bottom: Size,
+    },
+    DualHorizontal {
+        left: Size,
+        right: Size,
+    },
+    TripleHorizontal {
+        left: Size,
+        middle: Size,
+        right: Size,
+    },
 }
 
 #[derive(PartialEq, Debug, Deserialize)]
@@ -141,5 +156,7 @@ pub enum Action {
     PowerOff,
     Keypad,
     Custom,
+    CustomUpDown,
+    CustomButtonHour,
     Unused,
 }

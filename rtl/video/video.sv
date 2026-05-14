@@ -17,7 +17,8 @@ module video #(
     // Segments
     input wire [15:0] current_segment_a,
     input wire [15:0] current_segment_b,
-    input wire current_segment_bs,
+    input wire [15:0] current_segment_c,
+    input wire [15:0] current_segment_bs,
 
     input wire [3:0] current_w_prime[9],
     input wire [3:0] current_w_main [9],
@@ -26,6 +27,14 @@ module video #(
 
     // Settings
     input wire [7:0] lcd_off_alpha,
+
+    // Debug
+    input wire debug_video,
+    input wire [1:0] debug_view,
+    input wire [63:0] debug_events,
+    input wire [63:0] debug_cpu_state,
+    input wire [63:0] debug_melody_state,
+    input wire [63:0] debug_core_state,
 
     // Video
     output reg hsync,
@@ -75,6 +84,7 @@ module video #(
       // Segments
       .current_segment_a (current_segment_a),
       .current_segment_b (current_segment_b),
+      .current_segment_c (current_segment_c),
       .current_segment_bs(current_segment_bs),
 
       .current_w_prime(current_w_prime),
@@ -109,9 +119,49 @@ module video #(
       .output_pixel(processed_rgb)
   );
 
+  wire [2:0] debug_col = video_x[8:6];
+  wire [2:0] debug_row = video_y[8:6];
+  wire [5:0] debug_idx = {debug_row, debug_col};
+  wire debug_panel = video_x < 10'd512 && video_y < 10'd512;
+  wire debug_grid = (video_x[5:0] == 6'd0) || (video_y[5:0] == 6'd0);
+
+  reg [63:0] debug_bits;
+  always_comb begin
+    case (debug_view)
+      2'd1: debug_bits = debug_cpu_state;
+      2'd2: debug_bits = debug_melody_state;
+      2'd3: debug_bits = debug_core_state;
+      default: debug_bits = debug_events;
+    endcase
+  end
+
+  reg [23:0] debug_row_rgb;
+  always_comb begin
+    case (debug_row)
+      3'd0: debug_row_rgb = 24'hffffff;
+      3'd1: debug_row_rgb = 24'h00ff00;
+      3'd2: debug_row_rgb = 24'hffff00;
+      3'd3: debug_row_rgb = 24'h00ffff;
+      3'd4: debug_row_rgb = 24'hff80ff;
+      3'd5: debug_row_rgb = 24'hff8000;
+      3'd6: debug_row_rgb = 24'h80a0ff;
+      default: debug_row_rgb = 24'hff4040;
+    endcase
+  end
+
+  wire debug_cell_on = debug_panel && debug_bits[debug_idx];
+  wire [23:0] debug_rgb =
+      !de_int        ? 24'h000000 :
+      !debug_panel   ? 24'h000010 :
+      debug_grid     ? 24'h202020 :
+      debug_cell_on  ? debug_row_rgb :
+                       24'h080008;
+
+  wire [23:0] final_rgb = debug_video ? debug_rgb : processed_rgb;
+
   always @(posedge clk_sys_99_287) begin
     // We have two cycles to do work. One is spent on segment_en, one is spent here 
-    rgb <= processed_rgb;
+    rgb <= final_rgb;
   end
 
   rgb_controller rgb_controller (

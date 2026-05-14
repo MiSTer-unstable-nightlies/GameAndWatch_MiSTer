@@ -9,7 +9,8 @@ module normalize #(
 
     input wire [15:0] current_segment_a,
     input wire [15:0] current_segment_b,
-    input wire current_segment_bs,
+    input wire [15:0] current_segment_c,
+    input wire [15:0] current_segment_bs,
 
     input wire [3:0] current_w_prime[9],
     input wire [3:0] current_w_main [9],
@@ -51,9 +52,11 @@ module normalize #(
         for (y = 0; y < MAX_Y_SEGMENT; y += 1) begin
           segments[0][y][output_lcd_h_index] <= current_segment_a[y];
           segments[1][y][output_lcd_h_index] <= current_segment_b[y];
+          segments[3][y][output_lcd_h_index] <= current_segment_c[y];
 
-          // BS is a special case as a single bit, and is set for all Y
-          segments[2][y][output_lcd_h_index] <= current_segment_bs;
+          // SM510 presents this as one line mirrored across mask columns; SM511/SM512
+          // use BS column 0 for L/Y blinking and column 1 for X.
+          segments[2][y][output_lcd_h_index] <= current_segment_bs[y];
         end
       end
     endcase

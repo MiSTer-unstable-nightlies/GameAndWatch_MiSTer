@@ -40,6 +40,24 @@ export type Screen =
         width: number;
         height: number;
       };
+    }
+  | {
+      type: "tripleHorizontal";
+
+      left: {
+        width: number;
+        height: number;
+      };
+
+      middle: {
+        width: number;
+        height: number;
+      };
+
+      right: {
+        width: number;
+        height: number;
+      };
     };
 
 export interface PresetDefinition {
@@ -58,6 +76,7 @@ export interface PlatformSpecification {
 export interface ROMName {
   rom: string;
   melody: string | undefined;
+  melodyHash?: string;
   romOwner?: string;
   romHash: string;
 }
@@ -102,6 +121,8 @@ export type Action =
   // Keypad is not supported
   | "keypad"
   | "custom"
+  | "customUpDown"
+  | "customButtonHour"
   | "unused";
 
 export interface NamedAction {

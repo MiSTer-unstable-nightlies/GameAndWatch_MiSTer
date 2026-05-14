@@ -16,6 +16,9 @@ use crate::{
     HEIGHT, WIDTH,
 };
 
+const PROGRAM_ROM_SIZE: usize = 0x1000;
+const MELODY_ROM_SIZE: usize = 0x100;
+
 pub fn encode(
     background_bytes: &[u8],
     mask_bytes: &[u8],
@@ -56,17 +59,42 @@ pub fn encode(
 
     config.append(&mut mask_block);
 
-    // Add ROM
-    // TODO: Add melody ROM
-    let rom_path = asset_dir.join(&platform.rom.rom);
+    // Add ROM data. SM511/SM512 melody data is appended at offset 0x1000 so old
+    // SM510/SM5a packages remain layout-compatible.
+    let mut rom_data =
+        read_rom_by_name_or_hash(&platform.rom.rom, &platform.rom.rom_hash, asset_dir)?;
 
-    let mut rom_data = match fs::read(&rom_path) {
-        Ok(data) => Ok(data),
-        Err(_) => match find_rom_by_hash(&platform.rom.rom_hash, asset_dir) {
-            Ok(data) => Ok(data),
-            Err(err) => Err(format!("{err}\nCould not open ROM {rom_path:?}")),
-        },
-    }?;
+    if has_melody_rom(&platform.device.cpu) {
+        if rom_data.len() > PROGRAM_ROM_SIZE {
+            return Err(format!(
+                "Program ROM for {} is larger than {PROGRAM_ROM_SIZE:#x} bytes",
+                platform.metadata.name
+            ));
+        }
+
+        rom_data.resize(PROGRAM_ROM_SIZE, 0);
+
+        let melody_name = platform
+            .rom
+            .melody
+            .as_ref()
+            .ok_or_else(|| format!("{} requires a melody ROM", platform.metadata.name))?;
+        let mut melody_data = if let Some(melody_hash) = &platform.rom.melody_hash {
+            read_rom_by_name_or_hash(melody_name, melody_hash, asset_dir)?
+        } else {
+            read_rom_by_name(melody_name, asset_dir)?
+        };
+
+        if melody_data.len() != MELODY_ROM_SIZE {
+            return Err(format!(
+                "Melody ROM {melody_name:?} for {} was {} bytes, expected {MELODY_ROM_SIZE:#x}",
+                platform.metadata.name,
+                melody_data.len()
+            ));
+        }
+
+        rom_data.append(&mut melody_data);
+    }
 
     config.append(&mut rom_data);
 
@@ -83,6 +111,33 @@ pub fn encode(
     fs::write(&output_path, config).unwrap();
 
     Ok(output_path)
+}
+
+fn has_melody_rom(cpu_type: &CPUType) -> bool {
+    matches!(
+        cpu_type,
+        CPUType::SM511 | CPUType::SM512 | CPUType::SM511Tiger1Bit | CPUType::SM511Tiger2Bit
+    )
+}
+
+fn read_rom_by_name(name: &String, asset_dir: &Path) -> Result<Vec<u8>, String> {
+    let path = asset_dir.join(name);
+
+    fs::read(&path).map_err(|_| format!("Could not open ROM {path:?}"))
+}
+
+fn read_rom_by_name_or_hash(
+    name: &String,
+    target_hash: &String,
+    asset_dir: &Path,
+) -> Result<Vec<u8>, String> {
+    match read_rom_by_name(name, asset_dir) {
+        Ok(data) => Ok(data),
+        Err(name_err) => match find_rom_by_hash(target_hash, asset_dir) {
+            Ok(data) => Ok(data),
+            Err(hash_err) => Err(format!("{hash_err}\n{name_err}")),
+        },
+    }
 }
 
 fn find_rom_by_hash(target_hash: &String, asset_dir: &Path) -> Result<Vec<u8>, String> {
@@ -154,6 +209,19 @@ fn build_config(platform: &PlatformSpecification) -> Result<Vec<u8>, String> {
             }
 
             (2, left.width, left.height)
+        }
+        Screen::TripleHorizontal {
+            left,
+            middle,
+            right,
+        } => {
+            if left.height != middle.height || middle.height != right.height {
+                println!("Triple-horizontal screen heights don't match");
+            }
+
+            // The current FPGA package renderer uses the per-screen SVG bounds,
+            // but keep a representative panel size in the legacy 12-bit field.
+            (3, middle.width, middle.height)
         }
     };
     config.push(screen);
@@ -310,6 +378,8 @@ fn input_value_for_port(action: NamedAction) -> u8 {
         Action::PowerOff => 27,
         Action::Keypad => 28,
         Action::Custom => 29,
+        Action::CustomUpDown => 30,
+        Action::CustomButtonHour => 31,
         Action::Unused => 0x7F,
     };
 

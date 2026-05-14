@@ -98,7 +98,7 @@ const run = () => {
 
             if (port.type === "s") {
               // This is the one
-              portMap.groundLastIndex = i;
+              portMap.groundLastIndex = port.index;
               break;
             }
           }
@@ -201,6 +201,7 @@ const run = () => {
         rom: {
           rom: rom.rom.name,
           melody: rom.melody?.name,
+          melodyHash: rom.melody?.sha,
           romHash: rom.rom.sha,
         },
       };

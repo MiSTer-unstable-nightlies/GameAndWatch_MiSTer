@@ -28,19 +28,19 @@ Expected MAME input layout:
 From the repository root:
 
 ```sh
-cargo build --manifest-path support/Cargo.toml --release --locked
+cargo build --manifest-path "rom generator/Cargo.toml" --release --locked
 ```
 
 The binary will be written to:
 
 ```text
-support/target/release/fpga-gnw-romgenerator
+rom generator/target/release/fpga-gnw-romgenerator
 ```
 
 You can also run it without separately invoking the built binary:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- --help
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- --help
 ```
 
 ## Generate Or Provide The Manifest
@@ -50,26 +50,28 @@ The generator needs a `manifest.json` describing supported devices, CPU types, R
 To regenerate it from a local MAME source checkout:
 
 ```sh
-cd support/extraction
+cd "rom generator/extraction"
 npm ci
 npm run build -- /path/to/mame/src/mame/handheld/hh_sm510.cpp ../manifest.json
 ```
 
-That writes `support/manifest.json`, which the Rust generator can use directly.
+That writes `rom generator/manifest.json`, which the Rust generator can use directly.
 
 ## Generate ROM Packages
 
 From the repository root:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- \
-  --manifest-path support/manifest.json \
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- \
+  --manifest-path "rom generator/manifest.json" \
   --mame-path "/path/to/MAME Folder" \
   --output-path "/path/to/output" \
   supported
 ```
 
 The output directory must already exist.
+
+The `supported` filter includes SM510, SM511, SM512, SM510 Tiger, and SM5a titles. SM511/SM512 packages include the fixed 4 KiB program ROM area plus the appended 256 byte melody ROM.
 
 On MiSTer, generated `.gnw` files belong in:
 
@@ -82,8 +84,8 @@ On MiSTer, generated `.gnw` files belong in:
 Generate one game:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- \
-  --manifest-path support/manifest.json \
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- \
+  --manifest-path "rom generator/manifest.json" \
   --mame-path "/path/to/MAME Folder" \
   --output-path "/path/to/output" \
   specific gnw_dkong
@@ -92,8 +94,8 @@ cargo run --manifest-path support/Cargo.toml --release --locked -- \
 Generate only installed supported games:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- \
-  --manifest-path support/manifest.json \
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- \
+  --manifest-path "rom generator/manifest.json" \
   --mame-path "/path/to/MAME Folder" \
   --output-path "/path/to/output" \
   --installed \
@@ -103,5 +105,5 @@ cargo run --manifest-path support/Cargo.toml --release --locked -- \
 The Rust CLI is the source of truth for options:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- --help
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- --help
 ```

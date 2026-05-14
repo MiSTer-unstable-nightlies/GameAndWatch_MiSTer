@@ -89,8 +89,7 @@ export const parseInputs = (
       );
 
       const index = indexFromBit(bit);
-      const activeHigh = unparsedActive === "IP_ACTIVE_HIGH";
-      const button = parseButton(unparsedButton);
+      const button = parseButton(unparsedButton, line);
 
       if (!button) {
         console.log(
@@ -98,6 +97,9 @@ export const parseInputs = (
         );
         continue;
       }
+
+      const activeHigh =
+        unparsedActive === "IP_ACTIVE_HIGH" || button.startsWith("custom");
 
       if (!currentPort) {
         console.log(
@@ -312,7 +314,7 @@ const nameInnerPort = (port: Port): string => {
   return port.type;
 };
 
-const parseButton = (button: string): Action | undefined => {
+const parseButton = (button: string, line = ""): Action | undefined => {
   switch (button) {
     case "IPT_JOYSTICK_UP":
       return "joyUp";
@@ -383,15 +385,30 @@ const parseButton = (button: string): Action | undefined => {
     case "IPT_KEYPAD":
       return "keypad";
 
-    // Custom cannot be handled in an automated way
     case "IPT_CUSTOM":
-      return "custom";
+      return parseCustomButton(line);
 
     case "IPT_UNUSED":
       return "unused";
   }
 
   return undefined;
+};
+
+const parseCustomButton = (line: string): Action => {
+  const normalizedLine = line.toLowerCase();
+
+  if (normalizedLine.includes("up/down")) {
+    return "customUpDown";
+  }
+
+  if (normalizedLine.includes("button/hour")) {
+    return "customButtonHour";
+  }
+
+  // Keypad and other game-specific custom inputs are intentionally left
+  // generic until the core has a preservation-friendly mapping for them.
+  return "custom";
 };
 
 const parsePortName = (

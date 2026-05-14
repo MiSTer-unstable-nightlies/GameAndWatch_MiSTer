@@ -26,16 +26,23 @@ See [Platform Installation Instructions](docs/platform_installation.md) for plat
 
 ## Generating ROMs
 
-MiSTer loads `.gnw` ROM packages through the OSD. The ROM generator source and manifest extractor live in [support/](support/); full usage notes are in [docs/rom_generator.md](docs/rom_generator.md).
+MiSTer loads `.gnw` ROM packages through the OSD. The ROM generator source and manifest extractor live in [rom generator/](rom%20generator/); full usage notes are in [docs/rom_generator.md](docs/rom_generator.md).
 
 ## Supported Systems
 
 The Game and Watch (and related) series of devices used varied hardware for each device. The currently supported CPUs are:
 * SM510 - The "base" CPU the other's were based off of - Donkey Kong, Fire Attack, Mickey and Donald, etc
+* SM511 - Later Game & Watch titles with a dedicated melody ROM - Super Mario Bros., Climber, Balloon Fight, etc
+* SM512 - Later Multi Screen titles with an added C segment group - Black Jack, Bomb Sweeper, Gold Cliff, Zelda, etc
 * SM510 (Tiger Variant) - Experimental - Street Fighter 2, Double Dragon, etc
 * SM5a - Ball, Octopus, etc
 
 The [ROM Generator](docs/rom_generator.md) will read the attached `manifest.json` file to determine what CPU is used by each game. You can manually look through this file yourself, or use the generator tool to determine if a game is supported at this time.
+
+
+### Input Limitations
+
+The MiSTer core is built around the controller mapping shown in the OSD. Games whose original hardware depends on a keyboard or calculator-style keypad matrix are not currently supported, even if the CPU and ROM package load correctly. These packages may boot, play sound, or show static artwork but will not be playable until a preservation-friendly input mapping is designed.
 
 ### Homebrew
 

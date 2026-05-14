@@ -13,7 +13,8 @@ module ram (
 
     // Comb
     output reg [15:0] segment_a = 0,
-    output reg [15:0] segment_b = 0
+    output reg [15:0] segment_b = 0,
+    output reg [15:0] segment_c = 0
 );
 
   // Entire RAM is represented here. We write through to registers for display RAM (segments)
@@ -22,6 +23,7 @@ module ram (
   // Cached versions of all segments, with 4 H values
   reg [3:0] cached_segment_a[16];
   reg [3:0] cached_segment_b[16];
+  reg [3:0] cached_segment_c[16];
 
   always_comb begin
     integer i;
@@ -29,6 +31,7 @@ module ram (
     for (i = 0; i < 16; i += 1) begin
       segment_a[i] = cached_segment_a[i][lcd_h];
       segment_b[i] = cached_segment_b[i][lcd_h];
+      segment_c[i] = cached_segment_c[i][lcd_h];
     end
   end
 
@@ -73,8 +76,11 @@ module ram (
     if (wren) begin
       ram[final_addr] <= data;
 
-      if (final_addr >= 7'h60) begin
-        // Display RAM segment
+      if (cpu_id == 2 && final_addr >= 7'h50 && final_addr < 7'h60) begin
+        // SM512 display RAM segment C
+        cached_segment_c[final_addr[3:0]] <= data;
+      end else if (final_addr >= 7'h60) begin
+        // Display RAM segment A/B
         if (final_addr[4]) begin
           // Segment B
           cached_segment_b[final_addr[3:0]] <= data;

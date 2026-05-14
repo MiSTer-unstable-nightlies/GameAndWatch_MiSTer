@@ -2,16 +2,27 @@ import { CPUType, PresetDefinition } from "./types";
 
 const MAIN_CALL_REGEX = /(.*)\(config,(.*)\)/;
 
+type PresetFactory = (...args: any[]) => PresetDefinition;
+
 export const createPreset = (
   constructorBody: string,
   name: string
 ): PresetDefinition | undefined => {
-  const lines = constructorBody.trim().split("\n");
+  const lines = constructorBody
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 
   if (lines.length > 1) {
     console.log(
       `Device ${name} may require additional configuration. It performs extra actions in its constructor`
     );
+  }
+
+  const inheritedKonamiScreen = extractInheritedKonamiScreen(lines);
+  if (inheritedKonamiScreen) {
+    return inheritedKonamiScreen;
   }
 
   const match = lines[0].match(MAIN_CALL_REGEX);
@@ -30,18 +41,57 @@ export const createPreset = (
     return;
   }
 
-  // Extract arguments
-  const args = match[2]
+  const args = parsePresetArgs(match[2]);
+  if (!args) {
+    console.log(
+      `Unhandled constructor arguments ${match[2]} for device ${name}`
+    );
+    return;
+  }
+
+  return presetFunc(...args);
+};
+
+const extractInheritedKonamiScreen = (
+  lines: string[]
+): PresetDefinition | undefined => {
+  if (!lines.some((line) => line.startsWith("ktmnt2(config)"))) {
+    return undefined;
+  }
+
+  const screenLine = lines.find((line) =>
+    line.startsWith("mcfg_svg_screen(config,")
+  );
+
+  if (!screenLine) {
+    return undefined;
+  }
+
+  const match = screenLine.match(MAIN_CALL_REGEX);
+  if (!match) {
+    return undefined;
+  }
+
+  const args = parsePresetArgs(match[2]);
+  if (!args || args.length < 2) {
+    return undefined;
+  }
+
+  // kst25/ktopgun2 inherit the Konami sample-driver machine config from
+  // ktmnt2, then replace only the SVG screen size. The CPU is still SM511.
+  return sm511_common(args[0], args[1]);
+};
+
+const parsePresetArgs = (argString: string): number[] | undefined => {
+  const args = argString
     .split(",")
     .map((s) => s.trim())
     .map((s) => {
       const division = isDivision(s);
 
       if (division) {
-        // Is division, so lets just divide and return that value
         return division.dividend / division.divisor;
       } else if (isOnlyDigits(s)) {
-        // Convert to integer
         return parseInt(s, 10);
       }
 
@@ -50,12 +100,11 @@ export const createPreset = (
 
   for (const arg of args) {
     if (typeof arg === "string") {
-      console.log(`Unhandled argument ${arg} for device ${name}`);
-      return;
+      return undefined;
     }
   }
 
-  return presetFunc(...(args as [number, number, number, number]));
+  return args as number[];
 };
 
 const isOnlyDigits = (value: string) => /^-?\d+$/.test(value);
@@ -80,7 +129,7 @@ const isDivision = (
   return undefined;
 };
 
-const choosePreset = (name: string) => {
+const choosePreset = (name: string): PresetFactory | undefined => {
   switch (name) {
     case "sm5a_common":
       return sm5a_common;
@@ -99,6 +148,8 @@ const choosePreset = (name: string) => {
       return sm510_dualv;
     case "sm511_dualv":
       return sm511_dualv;
+    case "sm511_tripleh":
+      return sm511_tripleh;
     case "sm512_dualv":
       return sm512_dualv;
 
@@ -178,6 +229,37 @@ const standard_dual_vertical = (
   },
 });
 
+const standard_triple_horiztonal = (
+  cpu: CPUType,
+  leftWidth: number,
+  leftHeight: number,
+  middleWidth: number,
+  middleHeight: number,
+  rightWidth: number,
+  rightHeight: number
+): PresetDefinition => ({
+  cpu,
+
+  screen: {
+    type: "tripleHorizontal",
+
+    left: {
+      width: leftWidth,
+      height: leftHeight,
+    },
+
+    middle: {
+      width: middleWidth,
+      height: middleHeight,
+    },
+
+    right: {
+      width: rightWidth,
+      height: rightHeight,
+    },
+  },
+});
+
 /* Standard */
 
 const sm5a_common = (width: number, height: number): PresetDefinition =>
@@ -237,6 +319,24 @@ const sm511_dualv = (
     topHeight,
     bottomWidth,
     bottomHeight
+  );
+
+const sm511_tripleh = (
+  leftWidth: number,
+  leftHeight: number,
+  middleWidth: number,
+  middleHeight: number,
+  rightWidth: number,
+  rightHeight: number
+): PresetDefinition =>
+  standard_triple_horiztonal(
+    "sm511",
+    leftWidth,
+    leftHeight,
+    middleWidth,
+    middleHeight,
+    rightWidth,
+    rightHeight
   );
 
 const sm512_dualv = (

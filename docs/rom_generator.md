@@ -15,27 +15,27 @@ Place your `[artwork].zip` and `[rom].zip` MAME ROM files into your MAME folder,
 /MAME Folder/roms/gnw_dkong.zip
 ```
 
-The generator source lives in [`support/`](../support). Build it from the repository root with:
+The generator source lives in [`rom generator/`](../rom%20generator). Build it from the repository root with:
 
 ```sh
-cargo build --manifest-path support/Cargo.toml --release --locked
+cargo build --manifest-path "rom generator/Cargo.toml" --release --locked
 ```
 
-The built binary will be at `support/target/release/fpga-gnw-romgenerator`.
+The built binary will be at `rom generator/target/release/fpga-gnw-romgenerator`.
 
 ----
 
 The tool has many options and features which you can explore by running:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- --help
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- --help
 ```
 
 But most users will just want to generate any supported, installed ROMs they have, which you can do by running:
 
 ```sh
-cargo run --manifest-path support/Cargo.toml --release --locked -- \
-  --manifest-path support/manifest.json \
+cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- \
+  --manifest-path "rom generator/manifest.json" \
   --mame-path [MAME path] \
   --output-path [Output ROM path] \
   --installed \
@@ -43,6 +43,8 @@ cargo run --manifest-path support/Cargo.toml --release --locked -- \
 ```
 
 Make sure to replace the brackets with the actual paths to your files. The MAME path should be the folder that contains the `artwork` and `roms` folders. The output path must already exist.
+
+The `supported` filter includes SM510, SM511, SM512, SM510 Tiger, and SM5a titles. Known non-keypad MAME `IPT_CUSTOM` shared inputs are converted into explicit `CustomUpDown` or `CustomButtonHour` actions when they fit the core controller layout. For SM511/SM512 titles the generator pads the program ROM area to `0x1000` bytes and appends the 256 byte melody ROM automatically, matching the package layout documented in [Format](format.md).
 
 You can also generate a single game, all of the games for a certain CPU, and more.
 
@@ -64,12 +66,12 @@ In order to turn MAME ROMs of separate formats and sizes into a unified 720x720 
 
 ## Manifest
 
-The manifest extractor (located at [support/extraction](../support/extraction)) reads the MAME `hh_sm510.cpp` device definition file that contains all SM510 related titles and converts it into a reliable, reusable format. Use is very simple, run:
+The manifest extractor (located at [`rom generator/extraction`](../rom%20generator/extraction)) reads the MAME `hh_sm510.cpp` device definition file that contains the SM5xx handheld titles and converts it into a reliable, reusable format. Use is very simple, run:
 
 ```sh
-cd support/extraction
+cd "rom generator/extraction"
 npm ci
 npm run build -- [Path to hh_sm510.cpp] ../manifest.json
 ```
 
-This will create a `support/manifest.json` file with every SM510 title supported by MAME. You can use this in the ROM Generator by passing the `--manifest-path` argument.
+This will create a `rom generator/manifest.json` file with the SM5xx titles supported by MAME. You can use this in the ROM Generator by passing the `--manifest-path` argument.

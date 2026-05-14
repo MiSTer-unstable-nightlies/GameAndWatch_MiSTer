@@ -13,7 +13,8 @@ module lcd #(
     // Segments
     input wire [15:0] current_segment_a,
     input wire [15:0] current_segment_b,
-    input wire current_segment_bs,
+    input wire [15:0] current_segment_c,
+    input wire [15:0] current_segment_bs,
 
     input wire [3:0] current_w_prime[9],
     input wire [3:0] current_w_main [9],
@@ -57,6 +58,7 @@ module lcd #(
 
       .current_segment_a (current_segment_a),
       .current_segment_b (current_segment_b),
+      .current_segment_c (current_segment_c),
       .current_segment_bs(current_segment_bs),
 
       .current_w_prime(current_w_prime),

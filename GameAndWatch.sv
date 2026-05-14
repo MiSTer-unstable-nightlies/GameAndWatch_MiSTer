@@ -209,6 +209,10 @@ module emu (
     "-;",
     "O[1],Accurate LCD Timing,Off,On;",
     "-;",
+    "O[6],Debug Video,Off,On;",
+    "O[8:7],Debug View,Events,CPU,Melody,Core;",
+    "O[9],Debug Freeze,Off,On;",
+    "-;",
     "-;",
     "R[0],Reset;",
     "J1,Btn 1/R Joy Down,Btn 2/R Joy Right,Btn 3/R Joy Left,Btn 4/R Joy Up,Time,Alarm,Game A,Game B;",
@@ -288,6 +292,9 @@ module emu (
   wire external_reset = status[0];
   wire accurate_lcd_timing = status[1];
   wire [3:0] inactive_lcd_alpha_selection = status[5:2];
+  wire debug_video = status[6];
+  wire [1:0] debug_view = status[8:7];
+  wire debug_freeze = status[9];
 
   reg [7:0] lcd_off_alpha;
 
@@ -392,6 +399,11 @@ module emu (
       .accurate_lcd_timing(accurate_lcd_timing),
       .lcd_off_alpha(lcd_off_alpha),
 
+      .debug_video(debug_video),
+      .debug_view(debug_view),
+      .debug_freeze(debug_freeze),
+      .debug_clear(RESET || (ioctl_download && !prev_ioctl_download) || external_reset || hps_buttons[1]),
+
       .SDRAM_A(SDRAM_A),
       .SDRAM_BA(SDRAM_BA),
       .SDRAM_DQ(SDRAM_DQ),
@@ -415,8 +427,10 @@ module emu (
   assign VGA_DE = de;
   assign VGA_SL = 2'b00;
 
+  localparam signed [15:0] AUDIO_PIEZO_LEVEL = 16'sh2000;
+
   assign AUDIO_S = 1;
-  assign AUDIO_L = sound ? 16'sh4000 : -16'sh4000;
+  assign AUDIO_L = sound ? AUDIO_PIEZO_LEVEL : -AUDIO_PIEZO_LEVEL;
   assign AUDIO_R = AUDIO_L;
 
 endmodule

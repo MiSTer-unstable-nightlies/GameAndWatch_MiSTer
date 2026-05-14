@@ -187,7 +187,6 @@ CRT note:
 
 No `sys/` framework files were changed.
 
-
 ## Video Pipeline Revert - 2026-05-09
 
 Reverted the post-CRT video pipeline experiments after hardware testing showed the analog output was broken.
@@ -236,3 +235,143 @@ No `sys/` framework files were changed.
 - This intentionally backs out the earlier warning-cleanup helper in this area so the preservation-critical sound behavior matches the old working core first.
 
 No `sys/` framework files were changed.
+
+## SM511/SM512 Support Work - 2026-05-11
+
+Started implementation on branch `SM511+12` after a read-only feasibility pass against the local RTL and current MAME SM511/SM512 references.
+
+ROM generator changes:
+
+- Kept the existing `.gnw` layout compatible for SM510/SM5a packages.
+- Added SM511/SM512 to the generator's normal `supported` filter.
+- Added melody ROM packaging for SM511-family packages: the program ROM is padded to `0x1000` bytes and the 256 byte melody ROM is appended at package byte offset `0x326240` (`ROM_DATA_ADDR + 0x1000`).
+- Added optional `melodyHash` manifest plumbing so shared/parent melody ROMs can be found by SHA when a filename lookup is not enough.
+- Left SM511 Tiger IDs out of the normal `supported` filter for now, but the packaging helper recognizes them as melody-ROM CPUs if generated explicitly.
+
+RTL changes:
+
+- Added a 256 byte melody ROM RAM in `rtl/gameandwatch.sv`, loaded from the appended ROM area at byte offsets `0x1000-0x10FF` after the main program ROM.
+- Added SM511/SM512 melody address/data signals into `rtl/sm510.sv` and `rtl/cpu/instructions.sv`.
+- Added the SM511/SM512 melody generator state, tone-cycle table, and `PRE`, `SME`, `RME`, and `TMEL` operations following MAME's phase/reset behavior.
+- Added SM511/SM512 clock select handling: reset starts at the slower 8.192 kHz instruction rate and `CLKHI`/`CLKLO` switch between 16.384 kHz and 8.192 kHz.
+- Added an SM511-family decode path for CPU IDs `1`, `2`, `6`, and `7`, including the moved/expanded opcode map (`ROT`, `DTA`, `KTA`, `ATX`, `PTW`, `TL`, `TML`, and the `0x60` extended opcodes).
+- Split the W shift register from the S output latch so SM510 still updates S directly on `WR`/`WS`, while SM511/SM512 latch W to S via `PTW`.
+- Added SM512 segment C RAM caching for addresses `0x50-0x5F` and propagated segment C through the LCD/video normalization path as mask line `x=3`.
+- Changed BS from a single replicated bit to a 16-bit vector: SM510 still mirrors the single BS behavior across all mask columns, while SM511/SM512 expose BS column 0 from L/Y blinking and column 1 from X.
+
+Documentation changes:
+
+- Documented the appended SM511/SM512 melody ROM location in `docs/format.md`.
+- Updated `docs/graphics.md` so the SVG segment-plane documentation includes SM512 `seg_c` as mask line `x=3`.
+- Updated generator docs to reference the actual `rom generator/` folder instead of the earlier `support/` name and describe the SM511/SM512 melody packaging behavior.
+
+Verification notes:
+
+- `git diff --check` passed.
+- `cargo`, `quartus_sh`, `verilator`, and `iverilog` were not available in this local tool environment, so Rust and HDL compile checks still need to be run on the build machine.
+
+No `sys/` framework files were changed.
+
+## 2026-05-13 hardware debug overlay for SM511/SM512 bring-up
+
+- Read the Raizing/Demon's World debug notes as reference only. The useful pattern was an OSD-controlled 8x8 video grid driven by sticky/live core signals, allowing hardware debugging without SignalTap.
+- Added Game & Watch-owned OSD controls: `Debug Video` on `status[6]` and `Debug View` on `status[8:7]`. The MiSTer `sys/` framework remains untouched.
+- Added `sm510` debug outputs for sticky CPU/melody events plus live CPU and melody state rows. These expose the exact SM511/SM512 questions for the current failure: CPU ID, ROM/melody loading, instruction-stage progress, halt/wake state, `PRE`/`SME`/`RME`/`TMEL`, melody ROM address/data, and audio toggles.
+- Added a core-level event collector in `rtl/gameandwatch.sv` for IOCTL/package load state, main ROM writes, appended melody ROM writes, CPU type, melody-data reads, melody-address changes, and sound bit toggles. It intentionally keeps loader flags through `ioctl_download`, since the normal core reset is asserted while a ROM package is loading.
+- Added the diagnostic video overlay in `rtl/video/video.sv`, replacing normal RGB only when `Debug Video` is enabled. Normal video and audio paths are unchanged when the option is off.
+- Documented the view maps and first hardware test flow in `docs/debug_overlay.md`.
+
+## 2026-05-13 SM511/SM512 input debug refinement
+
+- Audited the Zelda BA/Beta-high observation against the ROM generator before keeping any polarity change. The generator intentionally defaults absent B/BA ports to active-low unused entries because those pins have pull-up resistors, so the input mux behavior was left unchanged.
+- Added a separate `debug_clear` pulse for the core/package debug collector so loader events survive the normal post-download reset but still clear on MiSTer reset or at the start of the next ROM download.
+- Replaced the least useful divider sticky cells in the Events debug view with SM511/SM512 row-scanner cells for `WR`, `WS`, `PTW`, and nonzero W-register state.
+- After Zelda showed no W/S activity, repurposed the first half of Events row 8 to sticky `KTA`, `TB`, `TAL`, and `TIS` opcode sightings so the next hardware pass can tell whether execution is trapped in the input/timer gate before display scanning starts.
+- Added `Debug Freeze` on `status[9]` to latch the current debug buses for stable manual CPU/Core transcription without changing core execution.
+
+## 2026-05-13 SM511/SM512 program ROM fetch fix
+
+- Frozen CPU debug snapshots showed Zelda executing in the `0x44x` ROM page while never reaching input polling or W/S scan opcodes.
+- Audited the SM511/SM512 slow-clock path and found that `rom_data` was being refreshed on every 32.768 kHz `clk_en`, while SM511/SM512 instruction stages advance only on `instr_clk_en`. During the idle half-cycle, the program ROM register could be overwritten with the post-increment PC byte before decode.
+- Added `rom_rd_en` from `rtl/sm510.sv` and changed `rtl/gameandwatch.sv` so program ROM data only updates on the CPU instruction clock. Melody ROM still updates on `clk_en`, since the melody sequencer is clocked independently of instruction execution.
+
+
+## 2026-05-13 SM511/SM512 melody timing follow-up
+
+- Decoded Zelda Melody debug rows from the on-screen bit grid. Because cells are displayed left-to-right as bit 0 through bit 7, user-transcribed rows must be bit-reversed before reading them as packed byte values.
+- The captured Zelda melody state showed a valid SM511 melody command (`0x19`) at melody address `0x22`, melody enable set, and `output_r[0]` active. That makes missing melody ROM data unlikely for the observed popping sound.
+- Corrected the core clock enable divider after the PLL change to `98.304 MHz`: `98.304 MHz / 3000 = 32.768 kHz`. The previous divider value was still based on the older clocking and produced roughly `32.125 kHz` for CPU/divider/melody timing.
+
+
+## 2026-05-13 SM511/SM512 melody duty-counter fix
+
+- Decoded additional Zelda Melody snapshots. The melody ROM commands around the bad sounds were valid, and `output_r[0]` did go high, but every captured row showed `melody_duty_count == 0` while `melody_duty_index` changed.
+- That points at the tone phase counter advancing without holding each phase for the SM511 table's target cycle count, which would produce audible clicks/pops rather than sustained beeps.
+- Reworked the SM511/SM512 melody timing code to compute target cycles through an explicit helper, use an automatic `clock_melody` task, and carry a named `next_duty_count` through the compare/update. This preserves the MAME timing model but avoids the previous nested temporary expression in the interface task.
+- Changed Melody debug row 6 to show `{melody_active_tone, melody_target_cycles[4:0], melody_rd[0], output_r[0]}` so the next hardware pass can confirm active tones have nonzero target cycle counts.
+
+
+## 2026-05-13 SM511/SM512 melody target-cycle lookup fix
+
+- Hardware after the duty-counter patch still popped. New Melody debug row 6 showed active tone/output/enabled bits, but no `melody_target_cycles` bits. Row 4 still showed only duty-index bits, confirming the target cycle count was zero and the duty counter reset every tick.
+- Replaced the SM511 target-cycle helper function path with a direct combinational lookup table keyed by `{melody_duty_index, melody_data[3:0]}`. The melody task now consumes that precomputed `melody_target_cycles_next` value instead of asking a nested helper during the interface task.
+- Pointed Melody debug row 6 at the direct combinational lookup (`melody_active_tone_next`, `melody_target_cycles_next`) so the next hardware build can tell immediately whether the lookup produces nonzero tone lengths.
+
+
+## 2026-05-13 Balloon Fight LCD package contrast
+
+- Confirmed `Balloon Fight (New Wide Screen).gnw` is packaged as CPU ID `1` / SM511. The package contains non-empty artwork, mask entries, program ROM, and melody ROM.
+- Decoded the generated `.gnw` image layers and found the foreground LCD layer is effectively identical to the background: only 4 of 518,400 pixels differed, and only 4 of 124,628 segment-mapped pixels had any RGB delta. With the core's normal background/foreground blend, active LCD segments therefore have almost no visible effect even if the SM511 CPU is driving them correctly.
+- Added a ROM-generator contrast fallback in `render.rs`: after composing the normal LCD foreground layer, the generator measures RGB delta over segment-mapped pixels. If the active layer has near-zero contrast, it darkens only those segment pixels in the foreground layer so regenerated packages still preserve the mask geometry while producing visible LCD artwork.
+- This is intentionally generator-side rather than a MiSTer core workaround, because the core's video path already receives separate background and active-LCD image planes from the `.gnw` package. Existing packages with normal foreground/background contrast are left unchanged by the threshold.
+
+
+## 2026-05-14 single-start handheld input mapping
+
+- Investigated `Bill Elliott's NASCAR Racing (handheld)` / `knascar`, which packages as SM511 with valid program/melody hashes and healthy LCD mask/artwork data.
+- Found the manifest maps only `start1` for this game; there is no `start2`/Game B action. The core's MiSTer wrapper had been treating `start1` strictly as Game A on controller Select, while controller Start only drove `start2`. That is preservation-friendly for Nintendo Game & Watch A/B titles but awkward for non-Nintendo handhelds with a single Start input.
+- Updated `rtl/input_config.sv` to detect whether the loaded package contains any `start2` mapping. If not, controller Start also drives `start1`. Packages that do define `start2` keep the existing split: Select = `start1` / Game A, Start = `start2` / Game B.
+
+## 2026-05-14 SM511/SM512 halt wake input path
+
+- Decoded the `Bill Elliott's NASCAR Racing (handheld)` CPU debug snapshot as SM511 at stage `HALT`, with `PC=0x400`, no active `S` row scanner, and no `KTA`/`PTW` activity. That makes the failure a CPU wake problem rather than a ROM, LCD mask, or artwork problem.
+- Added a separate `input_wake` signal in `rtl/input_config.sv` that ORs the currently pressed mapped K controls across all configured S rows while ignoring unused `0x7f` entries.
+- Changed the SM511/SM512 halt wake condition in `rtl/sm510.sv` to use that ungated wake signal, because those chips can wake from K input before firmware has latched an S row with `PTW`.
+- Kept SM510/SM5a halt wake on the existing row-scanned `input_k != 0` path so already-working games stay on their previous behavior.
+- Wired `input_wake` through `rtl/gameandwatch.sv`; no MiSTer `sys/` framework files were touched.
+
+## 2026-05-14 piezo output attenuation
+
+- Audited the MiSTer audio path after SM511/SM512 games sounded louder than expected. The CPU emulation still exposes a single logical piezo bit on `sound`, and the top-level MiSTer wrapper converts that bit into signed 16-bit samples.
+- Reduced the wrapper-level square-wave amplitude from `+/-0x4000` to `+/-0x2000`, roughly matching MAME's 0.25 speaker route gain for the shared Game & Watch piezo path.
+- Kept the change at the MiSTer output level rather than inside the SM511/SM512 melody generator, so melody timing, duty-cycle generation, and R-pin behavior remain unchanged.
+
+## 2026-05-14 keyboard/keypad input scope decision
+
+- Reverted the experimental `ps2_key`/calculator-keypad plumbing from the Space Adventure investigation.
+- Left the core on its intended MiSTer controller-oriented input scheme. Packages whose original hardware requires a keyboard/calculator keypad matrix remain unsupported for now rather than being partially mapped to arbitrary keyboard controls.
+- Documented that limitation in the README so keyboard-style games are not mistaken for broken SM511/SM512 emulation.
+
+## 2026-05-14 Vinni-Pukh LCD package contrast
+
+- Investigated `Vinni-Pukh.gnw`, which packages as SM511 with matching program and melody SHA-1 hashes and a normal controller-style input map.
+- Confirmed the LCD mask is populated: 9,404 mask runs, 132 segment IDs, and about 128k mapped segment pixels. This makes missing graphics unlikely to be a CPU or mask-addressing failure.
+- Found the generated active LCD image plane is effectively invisible: most mapped segment pixels are identical to the background, and the remaining changed pixels differ by only one RGB count.
+- Raised the ROM generator's contrast fallback threshold so packages whose active LCD plane has only near-zero average RGB delta over mapped segment pixels are regenerated with the same mask geometry but a visibly darker active LCD layer.
+- Existing `.gnw` files need to be regenerated to pick up this generator-side fix.
+
+### 2026-05-14 Tiger grounded row manifest fix
+- Found that `inp_fixed_last()` handling in the ROM generator stored the array position of the last `S` port rather than the actual `S` line index. This only diverged for Tiger games with skipped S rows.
+- Updated `rom generator/extraction/src/extract.ts` to write `port.index`, matching the package format and `rtl/input_config.sv` expectation that the stored value is the 0-based S line number before encoding.
+- Corrected the checked-in manifest entries whose grounded row pointed at the wrong S line: `tbatmana`, `tflash`, `tgargnf`, `tmigmax`, `tsuperman`, and `tvindictr`. Existing `.gnw` packages for those games need to be regenerated to pick up the fix.
+
+### 2026-05-14 manifest extractor coverage for skipped MAME titles
+- Added `tripleHorizontal` screen metadata so `sm511_tripleh(...)` titles such as Tronica Treasure Island can be represented by the ROM generator manifest.
+- Taught the extractor to handle Konami `ktmnt2`-derived constructors that call `ktmnt2(config)` and then replace the SVG screen size with `mcfg_svg_screen(...)`, covering `kst25` and `ktopgun2`.
+- Documented format value `0x3` for triple-horizontal packages. Konami external sample/ADPCM audio and MAME `IPT_CUSTOM` shared-button behavior remain separate core/input-scope issues; these changes make the titles representable in the manifest and generator.
+
+### 2026-05-14 non-keypad IPT_CUSTOM input mappings
+- Split known non-keypad MAME `IPT_CUSTOM` lines into explicit package actions instead of treating every custom condition as one generic input.
+- Added `CustomUpDown` for Konami Star Trek's shared Up/Down input and `CustomButtonHour` for Tronica Treasure Island's shared Start/Jump/Pick or Hour line.
+- Updated `rtl/input_config.sv` so `CustomUpDown` maps to D-pad Up or Down and `CustomButtonHour` maps to Button1 on the existing controller layout. Generic `Custom` and keypad-derived custom inputs remain intentionally unhandled.
+- Updated the local ignored `rom generator/manifest.json`; existing `.gnw` packages for affected games must be regenerated to carry the new action IDs.

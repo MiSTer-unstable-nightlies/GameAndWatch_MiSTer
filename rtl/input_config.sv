@@ -27,6 +27,7 @@ module input_config (
 
     // MPU Input
     output reg [3:0] input_k = 0,
+    output reg input_wake = 0,
 
     output reg input_beta = 0,
     output reg input_ba = 0,
@@ -47,6 +48,23 @@ module input_config (
     endcase
   endfunction
 
+  function row_has_action([31:0] input_config, [6:0] action);
+    return input_config[ 6: 0] == action ||
+        input_config[14: 8] == action ||
+        input_config[22:16] == action ||
+        input_config[30:24] == action;
+  endfunction
+
+  wire has_start2_config =
+      row_has_action(sys_config.input_s0_config, 7'd14) ||
+      row_has_action(sys_config.input_s1_config, 7'd14) ||
+      row_has_action(sys_config.input_s2_config, 7'd14) ||
+      row_has_action(sys_config.input_s3_config, 7'd14) ||
+      row_has_action(sys_config.input_s4_config, 7'd14) ||
+      row_has_action(sys_config.input_s5_config, 7'd14) ||
+      row_has_action(sys_config.input_s6_config, 7'd14) ||
+      row_has_action(sys_config.input_s7_config, 7'd14);
+
   // Map from config value to control
   function input_mux([7:0] config_value);
     reg out;
@@ -64,9 +82,10 @@ module input_config (
       7: out = button_x;
 
       // Buttons 5-8 unhandled
-      // Select is Time
+      // Select is Time. If the package has no Game B/start2 action, also let
+      // controller Start trigger Game A/start1 for single-start handhelds.
       12: out = button_trig_l;
-      13: out = button_select;
+      13: out = button_select || (!has_start2_config && button_start);
       14: out = button_start;
 
       // Service1 unhandled
@@ -85,6 +104,11 @@ module input_config (
       23: out = button_y;
       24: out = button_a;
 
+      // Explicit MAME IPT_CUSTOM mappings that fit the existing controller
+      // layout. Generic custom/keypad wiring remains unhandled.
+      30: out = dpad_up || dpad_down;
+      31: out = button_b;
+
       // This input is unused
       7'h7F: out = 0;
       // Other values unhandled
@@ -102,6 +126,23 @@ module input_config (
       input_mux(input_config[23:16]),
       input_mux(input_config[15:8]),
       input_mux(input_config[7:0])
+    };
+  endfunction
+
+  function wake_input_mux([7:0] config_value);
+    if (config_value[6:0] == 7'h7F) begin
+      return 1'b0;
+    end
+
+    return input_mux(config_value);
+  endfunction
+
+  function [3:0] build_wake_k([31:0] input_config);
+    return {
+      wake_input_mux(input_config[31:24]),
+      wake_input_mux(input_config[23:16]),
+      wake_input_mux(input_config[15:8]),
+      wake_input_mux(input_config[7:0])
     };
   endfunction
 
@@ -147,6 +188,17 @@ module input_config (
     endcase
 
     main_input_k <= temp_k;
+
+    input_wake <= (
+        build_wake_k(sys_config.input_s0_config) |
+        build_wake_k(sys_config.input_s1_config) |
+        build_wake_k(sys_config.input_s2_config) |
+        build_wake_k(sys_config.input_s3_config) |
+        build_wake_k(sys_config.input_s4_config) |
+        build_wake_k(sys_config.input_s5_config) |
+        build_wake_k(sys_config.input_s6_config) |
+        build_wake_k(sys_config.input_s7_config)
+    ) != 4'd0;
   end
 
   always @(posedge clk) begin
