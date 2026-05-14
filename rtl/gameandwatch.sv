@@ -143,6 +143,7 @@ module gameandwatch (
   wire [3:0] output_r;
 
   wire [3:0] input_k;
+  wire input_wake;
 
   wire input_beta;
   wire input_ba;
@@ -177,6 +178,7 @@ module gameandwatch (
 
       // MPU Input
       .input_k(input_k),
+      .input_wake(input_wake),
 
       .input_beta(input_beta),
       .input_ba  (input_ba),
@@ -233,6 +235,7 @@ module gameandwatch (
       .melody_addr(melody_addr),
 
       .input_k(input_k),
+      .input_wake(input_wake),
 
       .input_ba  (input_ba),
       .input_beta(input_beta),

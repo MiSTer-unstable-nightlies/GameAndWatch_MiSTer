@@ -324,3 +324,38 @@ No `sys/` framework files were changed.
 - Decoded the generated `.gnw` image layers and found the foreground LCD layer is effectively identical to the background: only 4 of 518,400 pixels differed, and only 4 of 124,628 segment-mapped pixels had any RGB delta. With the core's normal background/foreground blend, active LCD segments therefore have almost no visible effect even if the SM511 CPU is driving them correctly.
 - Added a ROM-generator contrast fallback in `render.rs`: after composing the normal LCD foreground layer, the generator measures RGB delta over segment-mapped pixels. If the active layer has near-zero contrast, it darkens only those segment pixels in the foreground layer so regenerated packages still preserve the mask geometry while producing visible LCD artwork.
 - This is intentionally generator-side rather than a MiSTer core workaround, because the core's video path already receives separate background and active-LCD image planes from the `.gnw` package. Existing packages with normal foreground/background contrast are left unchanged by the threshold.
+
+
+## 2026-05-14 single-start handheld input mapping
+
+- Investigated `Bill Elliott's NASCAR Racing (handheld)` / `knascar`, which packages as SM511 with valid program/melody hashes and healthy LCD mask/artwork data.
+- Found the manifest maps only `start1` for this game; there is no `start2`/Game B action. The core's MiSTer wrapper had been treating `start1` strictly as Game A on controller Select, while controller Start only drove `start2`. That is preservation-friendly for Nintendo Game & Watch A/B titles but awkward for non-Nintendo handhelds with a single Start input.
+- Updated `rtl/input_config.sv` to detect whether the loaded package contains any `start2` mapping. If not, controller Start also drives `start1`. Packages that do define `start2` keep the existing split: Select = `start1` / Game A, Start = `start2` / Game B.
+
+## 2026-05-14 SM511/SM512 halt wake input path
+
+- Decoded the `Bill Elliott's NASCAR Racing (handheld)` CPU debug snapshot as SM511 at stage `HALT`, with `PC=0x400`, no active `S` row scanner, and no `KTA`/`PTW` activity. That makes the failure a CPU wake problem rather than a ROM, LCD mask, or artwork problem.
+- Added a separate `input_wake` signal in `rtl/input_config.sv` that ORs the currently pressed mapped K controls across all configured S rows while ignoring unused `0x7f` entries.
+- Changed the SM511/SM512 halt wake condition in `rtl/sm510.sv` to use that ungated wake signal, because those chips can wake from K input before firmware has latched an S row with `PTW`.
+- Kept SM510/SM5a halt wake on the existing row-scanned `input_k != 0` path so already-working games stay on their previous behavior.
+- Wired `input_wake` through `rtl/gameandwatch.sv`; no MiSTer `sys/` framework files were touched.
+
+## 2026-05-14 piezo output attenuation
+
+- Audited the MiSTer audio path after SM511/SM512 games sounded louder than expected. The CPU emulation still exposes a single logical piezo bit on `sound`, and the top-level MiSTer wrapper converts that bit into signed 16-bit samples.
+- Reduced the wrapper-level square-wave amplitude from `+/-0x4000` to `+/-0x2000`, roughly matching MAME's 0.25 speaker route gain for the shared Game & Watch piezo path.
+- Kept the change at the MiSTer output level rather than inside the SM511/SM512 melody generator, so melody timing, duty-cycle generation, and R-pin behavior remain unchanged.
+
+## 2026-05-14 keyboard/keypad input scope decision
+
+- Reverted the experimental `ps2_key`/calculator-keypad plumbing from the Space Adventure investigation.
+- Left the core on its intended MiSTer controller-oriented input scheme. Packages whose original hardware requires a keyboard/calculator keypad matrix remain unsupported for now rather than being partially mapped to arbitrary keyboard controls.
+- Documented that limitation in the README so keyboard-style games are not mistaken for broken SM511/SM512 emulation.
+
+## 2026-05-14 Vinni-Pukh LCD package contrast
+
+- Investigated `Vinni-Pukh.gnw`, which packages as SM511 with matching program and melody SHA-1 hashes and a normal controller-style input map.
+- Confirmed the LCD mask is populated: 9,404 mask runs, 132 segment IDs, and about 128k mapped segment pixels. This makes missing graphics unlikely to be a CPU or mask-addressing failure.
+- Found the generated active LCD image plane is effectively invisible: most mapped segment pixels are identical to the background, and the remaining changed pixels differ by only one RGB count.
+- Raised the ROM generator's contrast fallback threshold so packages whose active LCD plane has only near-zero average RGB delta over mapped segment pixels are regenerated with the same mask geometry but a visibly darker active LCD layer.
+- Existing `.gnw` files need to be regenerated to pick up this generator-side fix.

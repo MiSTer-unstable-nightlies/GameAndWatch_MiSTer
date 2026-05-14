@@ -39,6 +39,11 @@ The Game and Watch (and related) series of devices used varied hardware for each
 
 The [ROM Generator](docs/rom_generator.md) will read the attached `manifest.json` file to determine what CPU is used by each game. You can manually look through this file yourself, or use the generator tool to determine if a game is supported at this time.
 
+
+### Input Limitations
+
+The MiSTer core is built around the controller mapping shown in the OSD. Games whose original hardware depends on a keyboard or calculator-style keypad matrix are not currently supported, even if the CPU and ROM package load correctly. These packages may boot, play sound, or show static artwork but will not be playable until a preservation-friendly input mapping is designed.
+
 ### Homebrew
 
 For homebrew titles (I only know of [Bride and Squeeze](https://forums.atariage.com/topic/282578-two-new-homebrew-lcd-games-game-watch/)), you should rename the artwork and roms zips to have the `hbw_` prefix, and the name of the game. Thus Bride becomes `hbw_bride` and Squeeze becomes `hbw_squeeze`.

@@ -457,7 +457,13 @@ fn ensure_lcd_contrast(
         total_delta += usize::from(background.blue().abs_diff(mask.blue()));
     }
 
-    if segment_pixels == 0 || total_delta > segment_pixels / 8 {
+    // Some MAME artwork layers are technically different from the background
+    // but only by one or two RGB counts, which is invisible on the core.
+    // Treat those as no-contrast LCD foregrounds and synthesize a usable
+    // active-segment layer from the real mask geometry.
+    let low_contrast_limit = segment_pixels * 3;
+
+    if segment_pixels == 0 || total_delta > low_contrast_limit {
         return;
     }
 

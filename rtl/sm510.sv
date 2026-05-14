@@ -22,6 +22,7 @@ module sm510 (
 
     // The K1-4 input pins
     input wire [3:0] input_k,
+    input wire       input_wake,
 
     // The BA and Beta input pins
     input wire input_ba,
@@ -222,8 +223,9 @@ module sm510 (
     end else if (clk_en) begin
       reset_halt <= 0;
 
-      if (divider_1s_tick || input_k != 0) begin
-        // Wake from halt
+      if (divider_1s_tick || (is_sm511_family ? input_wake : (input_k != 4'd0))) begin
+        // SM511/SM512 K inputs can wake halt before S has selected a row.
+        // Older cores keep the existing row-scanned K wake behavior.
         reset_halt <= 1;
       end
     end

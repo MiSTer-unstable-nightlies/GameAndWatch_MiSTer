@@ -427,8 +427,10 @@ module emu (
   assign VGA_DE = de;
   assign VGA_SL = 2'b00;
 
+  localparam signed [15:0] AUDIO_PIEZO_LEVEL = 16'sh2000;
+
   assign AUDIO_S = 1;
-  assign AUDIO_L = sound ? 16'sh4000 : -16'sh4000;
+  assign AUDIO_L = sound ? AUDIO_PIEZO_LEVEL : -AUDIO_PIEZO_LEVEL;
   assign AUDIO_R = AUDIO_L;
 
 endmodule
