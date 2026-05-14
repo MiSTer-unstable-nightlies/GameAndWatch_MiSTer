@@ -44,6 +44,12 @@ module gameandwatch (
     input wire accurate_lcd_timing, // Use precise timing to update the cached LCD segments based on H timing. This doesn't look good, hence the setting
     input wire [7:0] lcd_off_alpha, // The alpha value of all disabled/off LCD segments. This allows the LCD to stay visible at all times
 
+    // Debug
+    input wire debug_video,
+    input wire [1:0] debug_view,
+    input wire debug_freeze,
+    input wire debug_clear,
+
     // SDRAM
     inout  wire [15:0] SDRAM_DQ,
     output wire [12:0] SDRAM_A,
@@ -98,6 +104,7 @@ module gameandwatch (
   // ROM
 
   wire [11:0] rom_addr;
+  wire        rom_rd_en;
   reg [7:0] rom_data = 0;
   wire [7:0] melody_addr;
   reg [7:0] melody_data = 0;
@@ -106,8 +113,11 @@ module gameandwatch (
   reg [7:0] melody_rom[256];
 
   always @(posedge clk_sys_99_287) begin
-    if (clk_en) begin
+    if (rom_rd_en) begin
       rom_data <= rom[rom_addr];
+    end
+
+    if (clk_en) begin
       melody_data <= melody_rom[melody_addr];
     end
   end
@@ -176,8 +186,8 @@ module gameandwatch (
   ////////////////////////////////////////////////////////////////////////////////////////
   // Device/CPU
 
-  // 1020 (the multiplier from 32.768kHz to vid clock) * 3
-  localparam [11:0] DIVIDER_RESET_VALUE = 12'hBF4 - 12'h001;
+  // 98.304MHz / 3000 = the SM5xx 32.768kHz base clock.
+  localparam [11:0] DIVIDER_RESET_VALUE = 12'd3000 - 12'd1;
   reg [11:0] clock_divider = DIVIDER_RESET_VALUE;
 
   wire clk_en = clock_divider == 0;
@@ -202,6 +212,10 @@ module gameandwatch (
 
   wire divider_1khz;
 
+  wire [63:0] cpu_debug_events;
+  wire [63:0] debug_cpu_state;
+  wire [63:0] debug_melody_state;
+
   sm510 sm510 (
       .clk(clk_sys_99_287),
 
@@ -213,6 +227,7 @@ module gameandwatch (
 
       .rom_data(rom_data),
       .rom_addr(rom_addr),
+      .rom_rd_en(rom_rd_en),
 
       .melody_data(melody_data),
       .melody_addr(melody_addr),
@@ -240,10 +255,81 @@ module gameandwatch (
       .accurate_lcd_timing(accurate_lcd_timing),
 
       // Utility
-      .divider_1khz(divider_1khz)
+      .divider_1khz(divider_1khz),
+
+      // Debug
+      .debug_events(cpu_debug_events),
+      .debug_cpu_state(debug_cpu_state),
+      .debug_melody_state(debug_melody_state)
   );
 
   assign sound = output_r[0];
+
+  ////////////////////////////////////////////////////////////////////////////////////////
+  // Debug
+
+  reg [15:0] debug_core_seen = 16'd0;
+  reg [ 7:0] debug_last_melody_addr = 8'd0;
+  reg [ 3:0] debug_last_output_r = 4'd0;
+
+  always @(posedge clk_sys_99_287) begin
+    if (debug_clear) begin
+      debug_core_seen <= 16'd0;
+      debug_last_melody_addr <= 8'd0;
+      debug_last_output_r <= 4'd0;
+    end else begin
+      debug_last_melody_addr <= melody_addr;
+      debug_last_output_r <= output_r;
+
+      debug_core_seen[0]  <= debug_core_seen[0]  | 1'b1;
+      debug_core_seen[1]  <= debug_core_seen[1]  | ioctl_download;
+      debug_core_seen[2]  <= debug_core_seen[2]  | wr_8bit;
+      debug_core_seen[3]  <= debug_core_seen[3]  | (ioctl_wr && image_download);
+      debug_core_seen[4]  <= debug_core_seen[4]  | (ioctl_wr && mask_config_download);
+      debug_core_seen[5]  <= debug_core_seen[5]  | (wr_8bit && rom_download);
+      debug_core_seen[6]  <= debug_core_seen[6]  | (wr_8bit && rom_download && rom_byte_addr < 26'h001000);
+      debug_core_seen[7]  <= debug_core_seen[7]  | (wr_8bit && rom_download && rom_byte_addr >= 26'h001000 && rom_byte_addr < 26'h001100);
+      debug_core_seen[8]  <= debug_core_seen[8]  | (cpu_id == 4'd1);
+      debug_core_seen[9]  <= debug_core_seen[9]  | (cpu_id == 4'd2);
+      debug_core_seen[10] <= debug_core_seen[10] | (cpu_id == 4'd6);
+      debug_core_seen[11] <= debug_core_seen[11] | (cpu_id == 4'd7);
+      debug_core_seen[12] <= debug_core_seen[12] | (rom_data != 8'd0);
+      debug_core_seen[13] <= debug_core_seen[13] | (melody_data != 8'd0);
+      debug_core_seen[14] <= debug_core_seen[14] | (melody_addr != debug_last_melody_addr);
+      debug_core_seen[15] <= debug_core_seen[15] | (output_r[0] != debug_last_output_r[0]);
+    end
+  end
+
+  wire [7:0] debug_core_row0 = {cpu_id, input_k};
+  wire [7:0] debug_core_row1 = output_shifter_s;
+  wire [7:0] debug_core_row2 = {output_r, input_ba, input_beta, image_download, rom_download};
+  wire [7:0] debug_core_row3 = rom_addr[11:4];
+  wire [7:0] debug_core_row4 = {rom_addr[3:0], rom_data[7:4]};
+  wire [7:0] debug_core_row5 = {rom_data[3:0], melody_addr[7:4]};
+  wire [7:0] debug_core_row6 = {melody_addr[3:0], melody_data[7:4]};
+  wire [7:0] debug_core_row7 = {melody_data[3:0], current_segment_a[3:0]};
+
+  wire [63:0] debug_events = {cpu_debug_events[47:0], debug_core_seen};
+  wire [63:0] debug_core_state = {debug_core_row7, debug_core_row6, debug_core_row5, debug_core_row4, debug_core_row3, debug_core_row2, debug_core_row1, debug_core_row0};
+
+  reg [63:0] debug_events_frozen = 64'd0;
+  reg [63:0] debug_cpu_state_frozen = 64'd0;
+  reg [63:0] debug_melody_state_frozen = 64'd0;
+  reg [63:0] debug_core_state_frozen = 64'd0;
+
+  always @(posedge clk_sys_99_287) begin
+    if (!debug_freeze) begin
+      debug_events_frozen <= debug_events;
+      debug_cpu_state_frozen <= debug_cpu_state;
+      debug_melody_state_frozen <= debug_melody_state;
+      debug_core_state_frozen <= debug_core_state;
+    end
+  end
+
+  wire [63:0] video_debug_events = debug_freeze ? debug_events_frozen : debug_events;
+  wire [63:0] video_debug_cpu_state = debug_freeze ? debug_cpu_state_frozen : debug_cpu_state;
+  wire [63:0] video_debug_melody_state = debug_freeze ? debug_melody_state_frozen : debug_melody_state;
+  wire [63:0] video_debug_core_state = debug_freeze ? debug_core_state_frozen : debug_core_state;
 
   ////////////////////////////////////////////////////////////////////////////////////////
   // Video
@@ -282,6 +368,14 @@ module gameandwatch (
 
       // Settings
       .lcd_off_alpha(lcd_off_alpha),
+
+      // Debug
+      .debug_video(debug_video),
+      .debug_view(debug_view),
+      .debug_events(video_debug_events),
+      .debug_cpu_state(video_debug_cpu_state),
+      .debug_melody_state(video_debug_melody_state),
+      .debug_core_state(video_debug_core_state),
 
       // Video
       .hsync (hsync),

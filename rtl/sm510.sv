@@ -14,6 +14,7 @@ module sm510 (
     // Doing so will break this CPU's operation
     input  wire [ 7:0] rom_data,
     output wire [11:0] rom_addr,
+    output wire        rom_rd_en,
 
     // SM511/SM512 melody ROM
     input  wire [7:0] melody_data,
@@ -49,7 +50,12 @@ module sm510 (
     input wire accurate_lcd_timing,
 
     // Utility
-    output wire divider_1khz
+    output wire divider_1khz,
+
+    // Debug
+    output wire [63:0] debug_events,
+    output wire [63:0] debug_cpu_state,
+    output wire [63:0] debug_melody_state
 );
   ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +98,7 @@ module sm510 (
   );
 
   assign rom_addr = inst.rom_addr;
+  assign rom_rd_en = instr_clk_en;
   assign melody_addr = inst.melody_address;
   assign output_shifter_s = inst.shifter_s;
   assign output_r = inst.output_r;
@@ -331,6 +338,150 @@ module sm510 (
         STAGE_SKIP_2: stage <= STAGE_LOAD_PC;
         STAGE_SKIP_3: stage <= STAGE_SKIP_2;
       endcase
+    end
+  end
+
+  ////////////////////////////////////////////////////////////////////////////////////////
+  // Debug
+
+  reg [63:0] debug_seen = 64'd0;
+  reg [11:0] debug_last_pc = 12'd0;
+  reg [ 7:0] debug_last_opcode = 8'd0;
+  reg [ 3:0] debug_last_stage = 4'd0;
+  reg [ 7:0] debug_last_melody_address = 8'd0;
+  reg [ 3:0] debug_last_output_r = 4'd0;
+
+  wire [7:0] debug_cpu_row0 = {cpu_id, stage};
+  wire [7:0] debug_cpu_row1 = inst.pc[11:4];
+  wire [7:0] debug_cpu_row2 = {inst.pc[3:0], opcode[7:4]};
+  wire [7:0] debug_cpu_row3 = {opcode[3:0], inst.Acc};
+  wire [7:0] debug_cpu_row4 = {inst.carry, inst.Bm, inst.Bl};
+  wire [7:0] debug_cpu_row5 = {input_k, inst.output_r};
+  wire [7:0] debug_cpu_row6 = inst.shifter_s;
+  wire [7:0] debug_cpu_row7 = {
+    instr_clk_en,
+    inst.halt,
+    reset_halt,
+    gamma,
+    divider_4hz,
+    divider_32hz,
+    divider_64hz,
+    divider_1s_tick
+  };
+
+  wire [7:0] debug_melody_row0 = inst.melody_address;
+  wire [7:0] debug_melody_row1 = melody_data;
+  wire [7:0] debug_melody_row2 = {inst.melody_rd, inst.melody_step_count, inst.melody_rd[0]};
+  wire [7:0] debug_melody_row3 = {inst.melody_duty_index, inst.melody_duty_count, inst.sm511_slow_clock};
+  wire [7:0] debug_melody_row4 = {inst.output_r, inst.stored_output_r};
+  wire [7:0] debug_melody_row5 = {
+    inst.melody_active_tone_next,
+    inst.melody_target_cycles_next,
+    inst.melody_rd[0],
+    inst.output_r[0]
+  };
+  wire [7:0] debug_melody_row6 = divider[14:7];
+  wire [7:0] debug_melody_row7 = {divider[6:0], gamma};
+
+  assign debug_events = debug_seen;
+  assign debug_cpu_state = {
+    debug_cpu_row7,
+    debug_cpu_row6,
+    debug_cpu_row5,
+    debug_cpu_row4,
+    debug_cpu_row3,
+    debug_cpu_row2,
+    debug_cpu_row1,
+    debug_cpu_row0
+  };
+  assign debug_melody_state = {
+    debug_melody_row7,
+    debug_melody_row6,
+    debug_melody_row5,
+    debug_melody_row4,
+    debug_melody_row3,
+    debug_melody_row2,
+    debug_melody_row1,
+    debug_melody_row0
+  };
+
+  always @(posedge clk) begin
+    if (reset) begin
+      debug_seen <= 64'd0;
+      debug_last_pc <= 12'd0;
+      debug_last_opcode <= 8'd0;
+      debug_last_stage <= 4'd0;
+      debug_last_melody_address <= 8'd0;
+      debug_last_output_r <= 4'd0;
+    end else if (clk_en) begin
+      debug_last_pc <= inst.pc;
+      debug_last_opcode <= opcode;
+      debug_last_stage <= stage;
+      debug_last_melody_address <= inst.melody_address;
+      debug_last_output_r <= inst.output_r;
+
+      debug_seen[0]  <= debug_seen[0]  | 1'b1;
+      debug_seen[1]  <= debug_seen[1]  | is_sm511_family;
+      debug_seen[2]  <= debug_seen[2]  | (cpu_id == 4'd1);
+      debug_seen[3]  <= debug_seen[3]  | (cpu_id == 4'd2);
+      debug_seen[4]  <= debug_seen[4]  | (cpu_id == 4'd6);
+      debug_seen[5]  <= debug_seen[5]  | (cpu_id == 4'd7);
+      debug_seen[6]  <= debug_seen[6]  | instr_clk_en;
+      debug_seen[7]  <= debug_seen[7]  | (inst.pc != debug_last_pc);
+
+      debug_seen[8]  <= debug_seen[8]  | (stage == STAGE_LOAD_PC);
+      debug_seen[9]  <= debug_seen[9]  | (stage == STAGE_DECODE_PERF_1);
+      debug_seen[10] <= debug_seen[10] | (stage == STAGE_LOAD_2);
+      debug_seen[11] <= debug_seen[11] | (stage == STAGE_PERF_3);
+      debug_seen[12] <= debug_seen[12] | (stage == STAGE_IDX_FETCH);
+      debug_seen[13] <= debug_seen[13] | (stage == STAGE_IDX_PERF);
+      debug_seen[14] <= debug_seen[14] | (stage == STAGE_HALT);
+      debug_seen[15] <= debug_seen[15] | reset_halt;
+
+      debug_seen[16] <= debug_seen[16] | (opcode == 8'h60);
+      debug_seen[17] <= debug_seen[17] | (opcode == 8'h61);
+      debug_seen[18] <= debug_seen[18] | (stage == STAGE_PERF_3 && last_opcode == 8'h60);
+      debug_seen[19] <= debug_seen[19] | (stage == STAGE_PERF_3 && last_opcode == 8'h61);
+      debug_seen[20] <= debug_seen[20] | (stage == STAGE_PERF_3 && last_opcode == 8'h60 && opcode == 8'h31);
+      debug_seen[21] <= debug_seen[21] | (stage == STAGE_PERF_3 && last_opcode == 8'h60 && opcode == 8'h30);
+      debug_seen[22] <= debug_seen[22] | (stage == STAGE_PERF_3 && last_opcode == 8'h60 && opcode == 8'h32);
+      debug_seen[23] <= debug_seen[23] | (stage == STAGE_PERF_3 && last_opcode == 8'h61);
+
+      debug_seen[24] <= debug_seen[24] | inst.melody_rd[0];
+      debug_seen[25] <= debug_seen[25] | inst.melody_rd[1];
+      debug_seen[26] <= debug_seen[26] | (inst.melody_address != debug_last_melody_address);
+      debug_seen[27] <= debug_seen[27] | (melody_data != 8'd0);
+      debug_seen[28] <= debug_seen[28] | (inst.output_r != 4'd0);
+      debug_seen[29] <= debug_seen[29] | (inst.output_r[0] != debug_last_output_r[0]);
+      debug_seen[30] <= debug_seen[30] | (is_sm511_family && !inst.sm511_slow_clock);
+      debug_seen[31] <= debug_seen[31] | (is_sm511_family && inst.sm511_slow_clock);
+
+      debug_seen[32] <= debug_seen[32] | (input_k != 4'd0);
+      debug_seen[33] <= debug_seen[33] | input_ba;
+      debug_seen[34] <= debug_seen[34] | input_beta;
+      debug_seen[35] <= debug_seen[35] | (inst.shifter_s != 8'd0);
+      debug_seen[36] <= debug_seen[36] | (inst.segment_l != 4'd0);
+      debug_seen[37] <= debug_seen[37] | (inst.segment_x != 4'd0);
+      debug_seen[38] <= debug_seen[38] | (inst.segment_y != 4'd0);
+      debug_seen[39] <= debug_seen[39] | inst.ram_wr;
+
+      debug_seen[40] <= debug_seen[40] | (stage == STAGE_DECODE_PERF_1 && opcode == 8'h50);
+      debug_seen[41] <= debug_seen[41] | (stage == STAGE_DECODE_PERF_1 && opcode == 8'h51);
+      debug_seen[42] <= debug_seen[42] | (stage == STAGE_DECODE_PERF_1 && opcode == 8'h5E);
+      debug_seen[43] <= debug_seen[43] | (stage == STAGE_DECODE_PERF_1 && opcode == 8'h58);
+      debug_seen[44] <= debug_seen[44] | (stage == STAGE_DECODE_PERF_1 && opcode == 8'h62);
+      debug_seen[45] <= debug_seen[45] | (stage == STAGE_DECODE_PERF_1 && opcode == 8'h63);
+      debug_seen[46] <= debug_seen[46] | (stage == STAGE_DECODE_PERF_1 && is_sm511_family && opcode == 8'h6D);
+      debug_seen[47] <= debug_seen[47] | (inst.shifter_w != 8'd0);
+
+      debug_seen[48] <= debug_seen[48] | (inst.pc != 12'h370);
+      debug_seen[49] <= debug_seen[49] | (opcode != debug_last_opcode);
+      debug_seen[50] <= debug_seen[50] | (stage != debug_last_stage);
+      debug_seen[51] <= debug_seen[51] | inst.skip_next_instr;
+      debug_seen[52] <= debug_seen[52] | inst.skip_next_if_lax;
+      debug_seen[53] <= debug_seen[53] | inst.temp_sbm;
+      debug_seen[54] <= debug_seen[54] | inst.halt;
+      debug_seen[55] <= debug_seen[55] | (inst.output_r[0] != debug_last_output_r[0]);
     end
   end
 
@@ -718,6 +869,8 @@ module sm510 (
       inst.melody_duty_count <= 0;
       inst.melody_duty_index <= 0;
       inst.melody_address <= 0;
+      inst.melody_active_tone <= 0;
+      inst.melody_target_cycles <= 0;
 
       case (cpu_id)
         1, 2, 6, 7: begin

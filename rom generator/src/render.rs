@@ -392,6 +392,8 @@ pub fn render(
         None,
     );
 
+    ensure_lcd_contrast(&mut output_mask, &background_pixmap, &pixels_to_mask_id);
+
     if debug {
         let debug_path = asset_dir.join(format!("{platform_name}.png"));
         let debug_background_path = asset_dir.join(format!("{platform_name}_background.png"));
@@ -427,6 +429,53 @@ pub fn render(
         mask_bytes: output_mask,
         pixels_to_mask_id: pixels_to_mask_id,
     })
+}
+
+fn ensure_lcd_contrast(
+    output_mask: &mut Pixmap,
+    background_pixmap: &Pixmap,
+    pixels_to_mask_id: &[Option<u16>],
+) {
+    let background_pixels = background_pixmap.pixels();
+    let mask_pixels = output_mask.pixels();
+
+    let mut segment_pixels = 0usize;
+    let mut total_delta = 0usize;
+
+    for i in 0..WIDTH * HEIGHT {
+        if pixels_to_mask_id[i].is_none() {
+            continue;
+        }
+
+        segment_pixels += 1;
+
+        let background = background_pixels[i];
+        let mask = mask_pixels[i];
+
+        total_delta += usize::from(background.red().abs_diff(mask.red()));
+        total_delta += usize::from(background.green().abs_diff(mask.green()));
+        total_delta += usize::from(background.blue().abs_diff(mask.blue()));
+    }
+
+    if segment_pixels == 0 || total_delta > segment_pixels / 8 {
+        return;
+    }
+
+    let mask_pixels = output_mask.pixels_mut();
+
+    for i in 0..WIDTH * HEIGHT {
+        if pixels_to_mask_id[i].is_none() {
+            continue;
+        }
+
+        let background = background_pixels[i];
+        let lcd_red = (u16::from(background.red()) * 45 / 100) as u8;
+        let lcd_green = (u16::from(background.green()) * 45 / 100) as u8;
+        let lcd_blue = (u16::from(background.blue()) * 45 / 100) as u8;
+
+        mask_pixels[i] = PremultipliedColorU8::from_rgba(lcd_red, lcd_green, lcd_blue, 255)
+            .expect("Could not build contrast LCD color");
+    }
 }
 
 fn alpha_blend_colors(

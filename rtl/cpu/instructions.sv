@@ -79,6 +79,8 @@ interface instructions (
   reg [4:0] melody_duty_count = 0;
   reg [1:0] melody_duty_index = 0;
   reg [7:0] melody_address = 0;
+  reg melody_active_tone = 0;
+  reg [4:0] melody_target_cycles = 0;
 
   localparam R_MASK_DIRECT = 3'h7;
   // Direct passthrough of R0 on 0x7, otherwise use the divider bit indicated by this value
@@ -171,91 +173,103 @@ interface instructions (
   ////////////////////////////////////////////////////////////////////////////////////////
   // Melody/Output
 
-  function [3:0] sm511_tone_cycles(input [1:0] duty_index, input [3:0] tone);
-    case ({duty_index, tone})
-      6'h02: sm511_tone_cycles = 4'd7;
-      6'h03: sm511_tone_cycles = 4'd8;
-      6'h04: sm511_tone_cycles = 4'd8;
-      6'h05: sm511_tone_cycles = 4'd9;
-      6'h06: sm511_tone_cycles = 4'd9;
-      6'h07: sm511_tone_cycles = 4'd10;
-      6'h08: sm511_tone_cycles = 4'd11;
-      6'h09: sm511_tone_cycles = 4'd11;
-      6'h0A: sm511_tone_cycles = 4'd12;
-      6'h0B: sm511_tone_cycles = 4'd13;
-      6'h0C: sm511_tone_cycles = 4'd14;
-      6'h0D: sm511_tone_cycles = 4'd14;
+  wire [3:0] melody_tone = melody_data[3:0];
+  wire [5:0] melody_tone_key = {melody_duty_index, melody_tone};
+  wire melody_active_tone_next = melody_tone >= 4'd2 && melody_tone <= 4'd13;
+  reg [3:0] melody_tone_cycles = 0;
+  wire [4:0] melody_target_cycles_next =
+      melody_data[4] ? {1'b0, melody_tone_cycles} : {melody_tone_cycles, 1'b0};
 
-      6'h12: sm511_tone_cycles = 4'd8;
-      6'h13: sm511_tone_cycles = 4'd8;
-      6'h14: sm511_tone_cycles = 4'd9;
-      6'h15: sm511_tone_cycles = 4'd9;
-      6'h16: sm511_tone_cycles = 4'd10;
-      6'h17: sm511_tone_cycles = 4'd11;
-      6'h18: sm511_tone_cycles = 4'd11;
-      6'h19: sm511_tone_cycles = 4'd12;
-      6'h1A: sm511_tone_cycles = 4'd13;
-      6'h1B: sm511_tone_cycles = 4'd13;
-      6'h1C: sm511_tone_cycles = 4'd14;
-      6'h1D: sm511_tone_cycles = 4'd15;
+  always_comb begin
+    case (melody_tone_key)
+      6'h02: melody_tone_cycles = 4'd7;
+      6'h03: melody_tone_cycles = 4'd8;
+      6'h04: melody_tone_cycles = 4'd8;
+      6'h05: melody_tone_cycles = 4'd9;
+      6'h06: melody_tone_cycles = 4'd9;
+      6'h07: melody_tone_cycles = 4'd10;
+      6'h08: melody_tone_cycles = 4'd11;
+      6'h09: melody_tone_cycles = 4'd11;
+      6'h0A: melody_tone_cycles = 4'd12;
+      6'h0B: melody_tone_cycles = 4'd13;
+      6'h0C: melody_tone_cycles = 4'd14;
+      6'h0D: melody_tone_cycles = 4'd14;
 
-      6'h22: sm511_tone_cycles = 4'd8;
-      6'h23: sm511_tone_cycles = 4'd8;
-      6'h24: sm511_tone_cycles = 4'd9;
-      6'h25: sm511_tone_cycles = 4'd9;
-      6'h26: sm511_tone_cycles = 4'd10;
-      6'h27: sm511_tone_cycles = 4'd10;
-      6'h28: sm511_tone_cycles = 4'd11;
-      6'h29: sm511_tone_cycles = 4'd12;
-      6'h2A: sm511_tone_cycles = 4'd12;
-      6'h2B: sm511_tone_cycles = 4'd13;
-      6'h2C: sm511_tone_cycles = 4'd14;
-      6'h2D: sm511_tone_cycles = 4'd15;
+      6'h12: melody_tone_cycles = 4'd8;
+      6'h13: melody_tone_cycles = 4'd8;
+      6'h14: melody_tone_cycles = 4'd9;
+      6'h15: melody_tone_cycles = 4'd9;
+      6'h16: melody_tone_cycles = 4'd10;
+      6'h17: melody_tone_cycles = 4'd11;
+      6'h18: melody_tone_cycles = 4'd11;
+      6'h19: melody_tone_cycles = 4'd12;
+      6'h1A: melody_tone_cycles = 4'd13;
+      6'h1B: melody_tone_cycles = 4'd13;
+      6'h1C: melody_tone_cycles = 4'd14;
+      6'h1D: melody_tone_cycles = 4'd15;
 
-      6'h32: sm511_tone_cycles = 4'd8;
-      6'h33: sm511_tone_cycles = 4'd9;
-      6'h34: sm511_tone_cycles = 4'd9;
-      6'h35: sm511_tone_cycles = 4'd10;
-      6'h36: sm511_tone_cycles = 4'd10;
-      6'h37: sm511_tone_cycles = 4'd11;
-      6'h38: sm511_tone_cycles = 4'd11;
-      6'h39: sm511_tone_cycles = 4'd12;
-      6'h3A: sm511_tone_cycles = 4'd13;
-      6'h3B: sm511_tone_cycles = 4'd14;
-      6'h3C: sm511_tone_cycles = 4'd14;
-      6'h3D: sm511_tone_cycles = 4'd15;
+      6'h22: melody_tone_cycles = 4'd8;
+      6'h23: melody_tone_cycles = 4'd8;
+      6'h24: melody_tone_cycles = 4'd9;
+      6'h25: melody_tone_cycles = 4'd9;
+      6'h26: melody_tone_cycles = 4'd10;
+      6'h27: melody_tone_cycles = 4'd10;
+      6'h28: melody_tone_cycles = 4'd11;
+      6'h29: melody_tone_cycles = 4'd12;
+      6'h2A: melody_tone_cycles = 4'd12;
+      6'h2B: melody_tone_cycles = 4'd13;
+      6'h2C: melody_tone_cycles = 4'd14;
+      6'h2D: melody_tone_cycles = 4'd15;
 
-      default: sm511_tone_cycles = 4'd0;
+      6'h32: melody_tone_cycles = 4'd8;
+      6'h33: melody_tone_cycles = 4'd9;
+      6'h34: melody_tone_cycles = 4'd9;
+      6'h35: melody_tone_cycles = 4'd10;
+      6'h36: melody_tone_cycles = 4'd10;
+      6'h37: melody_tone_cycles = 4'd11;
+      6'h38: melody_tone_cycles = 4'd11;
+      6'h39: melody_tone_cycles = 4'd12;
+      6'h3A: melody_tone_cycles = 4'd13;
+      6'h3B: melody_tone_cycles = 4'd14;
+      6'h3C: melody_tone_cycles = 4'd14;
+      6'h3D: melody_tone_cycles = 4'd15;
+
+      default: melody_tone_cycles = 4'd0;
     endcase
-  endfunction
+  end
 
-  task clock_melody();
+  task automatic clock_melody();
     case (cpu_id)
       1, 2, 6, 7: begin
         // SM511/SM512 dedicated melody generator. The melody ROM stores 6-bit commands in
         // 8-bit bytes; bit 5 selects duration and bit 4 selects octave.
         reg [5:0] cmd;
         reg [3:0] tone;
-        reg [3:0] cycles;
         reg [4:0] target_cycles;
+        reg [4:0] next_duty_count;
         reg [4:0] step_mask;
         reg [4:0] next_step_count;
+        reg active_tone;
         reg out;
 
         cmd = melody_data[5:0];
         tone = cmd[3:0];
+        active_tone = melody_active_tone_next;
+        target_cycles = melody_target_cycles_next;
+        next_duty_count = melody_duty_count + 5'd1;
         out = 0;
 
-        if (tone >= 4'd2 && tone <= 4'd13) begin
-          cycles = sm511_tone_cycles(melody_duty_index, tone);
-          target_cycles = cmd[4] ? {1'b0, cycles} : {cycles, 1'b0};
+        melody_active_tone <= active_tone;
+        melody_target_cycles <= active_tone ? target_cycles : 5'd0;
+
+        if (active_tone) begin
           out = melody_duty_index[0] & melody_rd[0];
 
-          if (melody_duty_count + 5'd1 >= target_cycles) begin
+          if (next_duty_count >= target_cycles) begin
             melody_duty_count <= 0;
             melody_duty_index <= melody_duty_index + 2'd1;
           end else begin
-            melody_duty_count <= melody_duty_count + 5'd1;
+            melody_duty_count <= next_duty_count;
           end
         end else begin
           if (tone == 4'd1) begin

@@ -271,3 +271,56 @@ Verification notes:
 - `cargo`, `quartus_sh`, `verilator`, and `iverilog` were not available in this local tool environment, so Rust and HDL compile checks still need to be run on the build machine.
 
 No `sys/` framework files were changed.
+
+## 2026-05-13 hardware debug overlay for SM511/SM512 bring-up
+
+- Read the Raizing/Demon's World debug notes as reference only. The useful pattern was an OSD-controlled 8x8 video grid driven by sticky/live core signals, allowing hardware debugging without SignalTap.
+- Added Game & Watch-owned OSD controls: `Debug Video` on `status[6]` and `Debug View` on `status[8:7]`. The MiSTer `sys/` framework remains untouched.
+- Added `sm510` debug outputs for sticky CPU/melody events plus live CPU and melody state rows. These expose the exact SM511/SM512 questions for the current failure: CPU ID, ROM/melody loading, instruction-stage progress, halt/wake state, `PRE`/`SME`/`RME`/`TMEL`, melody ROM address/data, and audio toggles.
+- Added a core-level event collector in `rtl/gameandwatch.sv` for IOCTL/package load state, main ROM writes, appended melody ROM writes, CPU type, melody-data reads, melody-address changes, and sound bit toggles. It intentionally keeps loader flags through `ioctl_download`, since the normal core reset is asserted while a ROM package is loading.
+- Added the diagnostic video overlay in `rtl/video/video.sv`, replacing normal RGB only when `Debug Video` is enabled. Normal video and audio paths are unchanged when the option is off.
+- Documented the view maps and first hardware test flow in `docs/debug_overlay.md`.
+
+## 2026-05-13 SM511/SM512 input debug refinement
+
+- Audited the Zelda BA/Beta-high observation against the ROM generator before keeping any polarity change. The generator intentionally defaults absent B/BA ports to active-low unused entries because those pins have pull-up resistors, so the input mux behavior was left unchanged.
+- Added a separate `debug_clear` pulse for the core/package debug collector so loader events survive the normal post-download reset but still clear on MiSTer reset or at the start of the next ROM download.
+- Replaced the least useful divider sticky cells in the Events debug view with SM511/SM512 row-scanner cells for `WR`, `WS`, `PTW`, and nonzero W-register state.
+- After Zelda showed no W/S activity, repurposed the first half of Events row 8 to sticky `KTA`, `TB`, `TAL`, and `TIS` opcode sightings so the next hardware pass can tell whether execution is trapped in the input/timer gate before display scanning starts.
+- Added `Debug Freeze` on `status[9]` to latch the current debug buses for stable manual CPU/Core transcription without changing core execution.
+
+## 2026-05-13 SM511/SM512 program ROM fetch fix
+
+- Frozen CPU debug snapshots showed Zelda executing in the `0x44x` ROM page while never reaching input polling or W/S scan opcodes.
+- Audited the SM511/SM512 slow-clock path and found that `rom_data` was being refreshed on every 32.768 kHz `clk_en`, while SM511/SM512 instruction stages advance only on `instr_clk_en`. During the idle half-cycle, the program ROM register could be overwritten with the post-increment PC byte before decode.
+- Added `rom_rd_en` from `rtl/sm510.sv` and changed `rtl/gameandwatch.sv` so program ROM data only updates on the CPU instruction clock. Melody ROM still updates on `clk_en`, since the melody sequencer is clocked independently of instruction execution.
+
+
+## 2026-05-13 SM511/SM512 melody timing follow-up
+
+- Decoded Zelda Melody debug rows from the on-screen bit grid. Because cells are displayed left-to-right as bit 0 through bit 7, user-transcribed rows must be bit-reversed before reading them as packed byte values.
+- The captured Zelda melody state showed a valid SM511 melody command (`0x19`) at melody address `0x22`, melody enable set, and `output_r[0]` active. That makes missing melody ROM data unlikely for the observed popping sound.
+- Corrected the core clock enable divider after the PLL change to `98.304 MHz`: `98.304 MHz / 3000 = 32.768 kHz`. The previous divider value was still based on the older clocking and produced roughly `32.125 kHz` for CPU/divider/melody timing.
+
+
+## 2026-05-13 SM511/SM512 melody duty-counter fix
+
+- Decoded additional Zelda Melody snapshots. The melody ROM commands around the bad sounds were valid, and `output_r[0]` did go high, but every captured row showed `melody_duty_count == 0` while `melody_duty_index` changed.
+- That points at the tone phase counter advancing without holding each phase for the SM511 table's target cycle count, which would produce audible clicks/pops rather than sustained beeps.
+- Reworked the SM511/SM512 melody timing code to compute target cycles through an explicit helper, use an automatic `clock_melody` task, and carry a named `next_duty_count` through the compare/update. This preserves the MAME timing model but avoids the previous nested temporary expression in the interface task.
+- Changed Melody debug row 6 to show `{melody_active_tone, melody_target_cycles[4:0], melody_rd[0], output_r[0]}` so the next hardware pass can confirm active tones have nonzero target cycle counts.
+
+
+## 2026-05-13 SM511/SM512 melody target-cycle lookup fix
+
+- Hardware after the duty-counter patch still popped. New Melody debug row 6 showed active tone/output/enabled bits, but no `melody_target_cycles` bits. Row 4 still showed only duty-index bits, confirming the target cycle count was zero and the duty counter reset every tick.
+- Replaced the SM511 target-cycle helper function path with a direct combinational lookup table keyed by `{melody_duty_index, melody_data[3:0]}`. The melody task now consumes that precomputed `melody_target_cycles_next` value instead of asking a nested helper during the interface task.
+- Pointed Melody debug row 6 at the direct combinational lookup (`melody_active_tone_next`, `melody_target_cycles_next`) so the next hardware build can tell immediately whether the lookup produces nonzero tone lengths.
+
+
+## 2026-05-13 Balloon Fight LCD package contrast
+
+- Confirmed `Balloon Fight (New Wide Screen).gnw` is packaged as CPU ID `1` / SM511. The package contains non-empty artwork, mask entries, program ROM, and melody ROM.
+- Decoded the generated `.gnw` image layers and found the foreground LCD layer is effectively identical to the background: only 4 of 518,400 pixels differed, and only 4 of 124,628 segment-mapped pixels had any RGB delta. With the core's normal background/foreground blend, active LCD segments therefore have almost no visible effect even if the SM511 CPU is driving them correctly.
+- Added a ROM-generator contrast fallback in `render.rs`: after composing the normal LCD foreground layer, the generator measures RGB delta over segment-mapped pixels. If the active layer has near-zero contrast, it darkens only those segment pixels in the foreground layer so regenerated packages still preserve the mask geometry while producing visible LCD artwork.
+- This is intentionally generator-side rather than a MiSTer core workaround, because the core's video path already receives separate background and active-LCD image planes from the `.gnw` package. Existing packages with normal foreground/background contrast are left unchanged by the threshold.
