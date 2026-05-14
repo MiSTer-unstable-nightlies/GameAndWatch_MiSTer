@@ -359,3 +359,8 @@ No `sys/` framework files were changed.
 - Found the generated active LCD image plane is effectively invisible: most mapped segment pixels are identical to the background, and the remaining changed pixels differ by only one RGB count.
 - Raised the ROM generator's contrast fallback threshold so packages whose active LCD plane has only near-zero average RGB delta over mapped segment pixels are regenerated with the same mask geometry but a visibly darker active LCD layer.
 - Existing `.gnw` files need to be regenerated to pick up this generator-side fix.
+
+### 2026-05-14 Tiger grounded row manifest fix
+- Found that `inp_fixed_last()` handling in the ROM generator stored the array position of the last `S` port rather than the actual `S` line index. This only diverged for Tiger games with skipped S rows.
+- Updated `rom generator/extraction/src/extract.ts` to write `port.index`, matching the package format and `rtl/input_config.sv` expectation that the stored value is the 0-based S line number before encoding.
+- Corrected the checked-in manifest entries whose grounded row pointed at the wrong S line: `tbatmana`, `tflash`, `tgargnf`, `tmigmax`, `tsuperman`, and `tvindictr`. Existing `.gnw` packages for those games need to be regenerated to pick up the fix.

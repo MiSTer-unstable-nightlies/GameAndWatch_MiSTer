@@ -98,7 +98,7 @@ const run = () => {
 
             if (port.type === "s") {
               // This is the one
-              portMap.groundLastIndex = i;
+              portMap.groundLastIndex = port.index;
               break;
             }
           }
