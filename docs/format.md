@@ -93,6 +93,8 @@ The grounded input port is 0 when unset, and the 1-based index otherwise (so `"g
 | PowerOff                | 27           |
 | Keypad                  | 28           |
 | Custom                  | 29           |
+| CustomUpDown            | 30           |
+| CustomButtonHour        | 31           |
 | Mark Unused             | `0x7F`       |
 
 ### Images

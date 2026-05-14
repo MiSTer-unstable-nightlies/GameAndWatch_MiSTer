@@ -369,3 +369,9 @@ No `sys/` framework files were changed.
 - Added `tripleHorizontal` screen metadata so `sm511_tripleh(...)` titles such as Tronica Treasure Island can be represented by the ROM generator manifest.
 - Taught the extractor to handle Konami `ktmnt2`-derived constructors that call `ktmnt2(config)` and then replace the SVG screen size with `mcfg_svg_screen(...)`, covering `kst25` and `ktopgun2`.
 - Documented format value `0x3` for triple-horizontal packages. Konami external sample/ADPCM audio and MAME `IPT_CUSTOM` shared-button behavior remain separate core/input-scope issues; these changes make the titles representable in the manifest and generator.
+
+### 2026-05-14 non-keypad IPT_CUSTOM input mappings
+- Split known non-keypad MAME `IPT_CUSTOM` lines into explicit package actions instead of treating every custom condition as one generic input.
+- Added `CustomUpDown` for Konami Star Trek's shared Up/Down input and `CustomButtonHour` for Tronica Treasure Island's shared Start/Jump/Pick or Hour line.
+- Updated `rtl/input_config.sv` so `CustomUpDown` maps to D-pad Up or Down and `CustomButtonHour` maps to Button1 on the existing controller layout. Generic `Custom` and keypad-derived custom inputs remain intentionally unhandled.
+- Updated the local ignored `rom generator/manifest.json`; existing `.gnw` packages for affected games must be regenerated to carry the new action IDs.

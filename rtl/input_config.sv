@@ -104,6 +104,11 @@ module input_config (
       23: out = button_y;
       24: out = button_a;
 
+      // Explicit MAME IPT_CUSTOM mappings that fit the existing controller
+      // layout. Generic custom/keypad wiring remains unhandled.
+      30: out = dpad_up || dpad_down;
+      31: out = button_b;
+
       // This input is unused
       7'h7F: out = 0;
       // Other values unhandled

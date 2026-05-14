@@ -44,7 +44,7 @@ cargo run --manifest-path "rom generator/Cargo.toml" --release --locked -- \
 
 Make sure to replace the brackets with the actual paths to your files. The MAME path should be the folder that contains the `artwork` and `roms` folders. The output path must already exist.
 
-The `supported` filter includes SM510, SM511, SM512, SM510 Tiger, and SM5a titles. For SM511/SM512 titles the generator pads the program ROM area to `0x1000` bytes and appends the 256 byte melody ROM automatically, matching the package layout documented in [Format](format.md).
+The `supported` filter includes SM510, SM511, SM512, SM510 Tiger, and SM5a titles. Known non-keypad MAME `IPT_CUSTOM` shared inputs are converted into explicit `CustomUpDown` or `CustomButtonHour` actions when they fit the core controller layout. For SM511/SM512 titles the generator pads the program ROM area to `0x1000` bytes and appends the 256 byte melody ROM automatically, matching the package layout documented in [Format](format.md).
 
 You can also generate a single game, all of the games for a certain CPU, and more.
 

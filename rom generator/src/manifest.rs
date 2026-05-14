@@ -156,5 +156,7 @@ pub enum Action {
     PowerOff,
     Keypad,
     Custom,
+    CustomUpDown,
+    CustomButtonHour,
     Unused,
 }

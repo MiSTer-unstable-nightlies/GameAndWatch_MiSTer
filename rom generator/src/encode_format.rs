@@ -378,6 +378,8 @@ fn input_value_for_port(action: NamedAction) -> u8 {
         Action::PowerOff => 27,
         Action::Keypad => 28,
         Action::Custom => 29,
+        Action::CustomUpDown => 30,
+        Action::CustomButtonHour => 31,
         Action::Unused => 0x7F,
     };
 

@@ -121,6 +121,8 @@ export type Action =
   // Keypad is not supported
   | "keypad"
   | "custom"
+  | "customUpDown"
+  | "customButtonHour"
   | "unused";
 
 export interface NamedAction {
