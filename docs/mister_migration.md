@@ -375,3 +375,17 @@ No `sys/` framework files were changed.
 - Added `CustomUpDown` for Konami Star Trek's shared Up/Down input and `CustomButtonHour` for Tronica Treasure Island's shared Start/Jump/Pick or Hour line.
 - Updated `rtl/input_config.sv` so `CustomUpDown` maps to D-pad Up or Down and `CustomButtonHour` maps to Button1 on the existing controller layout. Generic `Custom` and keypad-derived custom inputs remain intentionally unhandled.
 - Updated the local ignored `rom generator/manifest.json`; existing `.gnw` packages for affected games must be regenerated to carry the new action IDs.
+
+## MiSTer Framework Refresh - 2026-05-15
+
+- Replaced the MiSTer framework folder with a byte-for-byte copy from the local Template_MiSTer checkout at template commit `f35083f3b40d24853abea4cd3f77caccbd71d5de`.
+- The refreshed framework replaces `sys/audio_out.v` with `sys/audio_out.sv`, adds `sys/emu_ports.vh`, and moves the scaler/framebuffer scanline status plumbing out of the core-facing HPS bus extension.
+- Updated `GameAndWatch.sv` to include `sys/emu_ports.vh` for the `emu` module port list, matching the modern Template_MiSTer convention and the refreshed framework `HPS_BUS[45:0]` width.
+- Verified the refreshed framework matched the local Template_MiSTer checkout after the refresh.
+
+No core video, audio, ROM loader, CPU, or LCD behavior was changed as part of this framework refresh.
+
+## Local Path Cleanup - 2026-05-15
+
+- Removed machine-specific absolute directory references from project documentation.
+- Removed `.DS_Store` files from the project tree so Finder metadata is not carried with the source.
